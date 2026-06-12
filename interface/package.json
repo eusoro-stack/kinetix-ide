@@ -1,0 +1,14 @@
+{
+  "name": "kinetix-console",
+  "version": "1.0.0",
+  "description": "High-fidelity Kinetix IDE telemetry console backend",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "author": "Enefiok Usoro",
+  "license": "MIT"
+}

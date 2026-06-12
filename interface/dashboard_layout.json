@@ -1,0 +1,42 @@
+{
+  "theme": {
+    "primaryColor": "#00f2fe",
+    "secondaryColor": "#9b51e0",
+    "backgroundColor": "#0a0c10",
+    "glassmorphism": true,
+    "borderRadius": "16px",
+    "fonts": {
+      "display": "Outfit",
+      "sans": "Inter"
+    }
+  },
+  "layout": {
+    "columns": {
+      "leftWidthRatio": 1.0,
+      "rightWidthRatio": 1.2
+    },
+    "panels": {
+      "telemetry": {
+        "visible": true,
+        "position": "left-top"
+      },
+      "gpu": {
+        "visible": true,
+        "position": "left-bottom"
+      },
+      "pm2": {
+        "visible": true,
+        "position": "right-top"
+      },
+      "ollama": {
+        "visible": true,
+        "position": "right-bottom"
+      }
+    }
+  },
+  "polling": {
+    "metrics_interval_ms": 2500,
+    "pm2_interval_ms": 5000,
+    "ollama_interval_ms": 10000
+  }
+}

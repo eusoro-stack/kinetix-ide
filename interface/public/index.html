@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🛸 Kinetix IDE — Core Grid Monitor</title>
+  
+  <!-- Google Fonts Outfit & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Custom Premium Glassmorphic Stylesheet -->
+  <link rel="stylesheet" href="theme.css">
+</head>
+<body>
+
+  <!-- Background Ambient Glows -->
+  <div class="ambient-glow glow-1"></div>
+  <div class="ambient-glow glow-2"></div>
+  <div class="ambient-glow glow-3"></div>
+
+  <!-- App Container -->
+  <div class="app-container">
+    
+    <!-- Top Header Bar -->
+    <header class="header">
+      <div class="logo-area">
+        <div class="pulse-ring">
+          <div class="pulse-inner"></div>
+        </div>
+        <div class="title-meta">
+          <h1>KINETIX</h1>
+          <span class="subtitle">CORE GRID MONITOR</span>
+        </div>
+      </div>
+      
+      <div class="sys-meta">
+        <div class="meta-item">
+          <span class="label">Workstation Host</span>
+          <span class="val" id="meta-host">Loading...</span>
+        </div>
+        <div class="meta-item">
+          <span class="label">Tailmesh Node</span>
+          <span class="val status-indicator" id="meta-network">Checking...</span>
+        </div>
+        <div class="meta-item grade-container">
+          <span class="label">Evaluation Rank</span>
+          <span class="val grade-badge" id="meta-grade">-</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Grid Dashboard Layout -->
+    <main class="grid-layout">
+      
+      <!-- Left Column: Metrics and Telemetry -->
+      <section class="grid-col left-col">
+        
+        <!-- System Load Meter -->
+        <div class="card glass-card span-all-rows">
+          <div class="card-header">
+            <h3>📈 Workstation Telemetry</h3>
+            <span class="badge" id="collector-status">Daemon Offline</span>
+          </div>
+          
+          <div class="resource-gauges">
+            
+            <!-- CPU Gauge -->
+            <div class="gauge-card">
+              <div class="gauge-info">
+                <span class="gauge-title">CPU System</span>
+                <span class="gauge-value" id="cpu-percent">0%</span>
+              </div>
+              <div class="progress-bar-container">
+                <div class="progress-bar-fill" id="cpu-bar" style="width: 0%"></div>
+              </div>
+              <div class="gauge-sub">
+                <span id="cpu-cores">Cores: 0</span> | <span id="cpu-threads">Threads: 0</span>
+              </div>
+            </div>
+
+            <!-- RAM Gauge -->
+            <div class="gauge-card">
+              <div class="gauge-info">
+                <span class="gauge-title">Memory (RAM)</span>
+                <span class="gauge-value" id="ram-percent">0%</span>
+              </div>
+              <div class="progress-bar-container">
+                <div class="progress-bar-fill memory-fill" id="ram-bar" style="width: 0%"></div>
+              </div>
+              <div class="gauge-sub">
+                <span id="ram-used">0 GB</span> / <span id="ram-total">0 GB</span>
+              </div>
+            </div>
+
+            <!-- Storage Gauge -->
+            <div class="gauge-card">
+              <div class="gauge-info">
+                <span class="gauge-title">Storage Drive</span>
+                <span class="gauge-value" id="disk-percent">0%</span>
+              </div>
+              <div class="progress-bar-container">
+                <div class="progress-bar-fill storage-fill" id="disk-bar" style="width: 0%"></div>
+              </div>
+              <div class="gauge-sub">
+                <span id="disk-used">0 GB</span> / <span id="disk-total">0 GB</span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- GPU Acceleration Telemetry Card -->
+        <div class="card glass-card" id="gpu-card">
+          <div class="card-header">
+            <h3>🎮 NVIDIA GPU Core Link</h3>
+            <span class="badge gpu-badge" id="gpu-status">Not Detected</span>
+          </div>
+          
+          <div class="gpu-content-inactive" id="gpu-inactive-msg">
+             <div class="placeholder-icon">🛸</div>
+             <p>No active NVIDIA discrete GPU telemetry. Run <code>python telemetry.py</code> to connect local hardware sensors.</p>
+          </div>
+
+          <div class="gpu-content-active hidden" id="gpu-details">
+            <h4 id="gpu-name">RTX Model</h4>
+            <div class="gpu-stats-grid">
+              <div class="gpu-stat-item">
+                <span class="lbl">GPU Core Load</span>
+                <span class="val-large" id="gpu-util">0%</span>
+              </div>
+              <div class="gpu-stat-item">
+                <span class="lbl">VRAM Utilization</span>
+                <span class="val-large" id="gpu-vram-percent">0%</span>
+              </div>
+              <div class="gpu-stat-item">
+                <span class="lbl">Core Temp</span>
+                <span class="val-large" id="gpu-temp">0°C</span>
+              </div>
+              <div class="gpu-stat-item">
+                <span class="lbl">VRAM Used</span>
+                <span class="val-large" id="gpu-vram-bytes">0 GB</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- Right Column: Process Manager and Ollama Service -->
+      <section class="grid-col right-col">
+        
+        <!-- PM2 Process Orchestration -->
+        <div class="card glass-card">
+          <div class="card-header">
+            <h3>📦 PM2 Task Orchestrator</h3>
+            <span class="badge" id="pm2-status">PM2 Inactive</span>
+          </div>
+          
+          <div class="table-wrapper">
+             <table class="data-table">
+               <thead>
+                 <tr>
+                   <th>App Name</th>
+                   <th>Status</th>
+                   <th>CPU</th>
+                   <th>RAM</th>
+                   <th>Actions</th>
+                 </tr>
+               </thead>
+               <tbody id="pm2-list">
+                 <tr>
+                   <td colspan="5" class="empty-message">Polling PM2 processes...</td>
+                 </tr>
+               </tbody>
+             </table>
+          </div>
+        </div>
+
+        <!-- Ollama Inference Gateway -->
+        <div class="card glass-card">
+          <div class="card-header">
+            <h3>🧠 Ollama AI Inference Gateway</h3>
+            <span class="badge llm-badge" id="ollama-status">Offline</span>
+          </div>
+
+          <div class="gateway-info">
+             <div class="endpoint-ip">
+               <span class="lbl">Gateway API Target:</span>
+               <span class="valcode" id="ollama-endpoint">http://127.0.0.1:11434</span>
+             </div>
+          </div>
+
+          <div class="model-puller">
+             <form id="pull-model-form" class="pull-form">
+               <input type="text" id="model-name-input" placeholder="e.g. llama3.1, phi4, moondream..." required>
+               <button type="submit" id="pull-btn">Pull Model</button>
+             </form>
+             <div id="pull-status-message" class="pull-status-msg hidden">Downloading model...</div>
+          </div>
+
+          <h4 class="section-title">Available Models on Disk</h4>
+          <div class="model-list" id="ollama-models">
+             <div class="empty-message">No models cached. Connect Ollama client.</div>
+          </div>
+        </div>
+
+      </section>
+
+    </main>
+
+    <!-- Footer Stats / Details -->
+    <footer class="footer">
+      <div class="uptime-log">
+        <span>Uptime: <strong id="sys-uptime">0h 0m</strong></span>
+        <span>Platform: <strong id="sys-platform">-</strong></span>
+      </div>
+      <div class="copyright">
+        <span>Kinetix IDE System Blueprint v1.0.0</span>
+      </div>
+    </footer>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
