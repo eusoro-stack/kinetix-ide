@@ -1,4 +1,5 @@
 const path = require('path');
+const os = require('os');
 
 module.exports = {
   apps: [
@@ -45,7 +46,7 @@ module.exports = {
       name: 'kinetix-media-bridge',
       script: 'node',
       args: ['index.js'],
-      cwd: 'C:\\Users\\eusor\\Documents\\roon-myclaw', // Update this to local path
+      cwd: path.join(os.homedir(), 'Documents', 'roon-myclaw'), // Dynamic home directory path
       instances: 1,
       autorestart: true,
       watch: false,

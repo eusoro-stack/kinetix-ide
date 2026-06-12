@@ -1,0 +1,20 @@
+# Dependency directories
+node_modules/
+interface/node_modules/
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Telemetry outputs
+telemetry_node.json
+
+# Old console files
+console/
+
+# Log files
+*.log
+logs/
