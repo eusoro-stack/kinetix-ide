@@ -79,18 +79,22 @@
             <div class="vitals-item">
               <span class="v-label">System Load</span>
               <span class="v-value" id="vitals-load">12%</span>
+              <div class="vitals-bar-bg"><div class="vitals-bar-fill" id="v-load-bar" style="width: 12%"></div></div>
             </div>
             <div class="vitals-item">
               <span class="v-label">CPU Temp</span>
               <span class="v-value" id="vitals-temp">41°C</span>
+              <div class="vitals-bar-bg"><div class="vitals-bar-fill temp" id="v-temp-bar" style="width: 41%"></div></div>
             </div>
             <div class="vitals-item">
               <span class="v-label">Inference Speed</span>
               <span class="v-value" id="vitals-speed">0 t/s</span>
+              <div class="vitals-bar-bg"><div class="vitals-bar-fill speed" id="v-speed-bar" style="width: 0%"></div></div>
             </div>
             <div class="vitals-item">
               <span class="v-label">Active Pins</span>
               <span class="v-value" id="vitals-pins">0</span>
+              <div class="vitals-bar-bg"><div class="vitals-bar-fill pins" id="v-pins-bar" style="width: 0%"></div></div>
             </div>
           </div>
         </div>
@@ -246,7 +250,7 @@
           const core = document.createElement('div');
           core.className = `mock-core ${isP ? 'p-mock' : 'e-mock'}`;
           core.id = `sim-core-${i}`;
-          core.innerText = i;
+          core.innerHTML = `<span class="core-num">${i}</span><span class="core-pulse-dot"></span>`;
           coreGrid.appendChild(core);
         }
       }
@@ -282,6 +286,17 @@
         vTemp.innerText = `${temp}°C`;
         vSpeed.innerText = `${speed} t/s`;
         vPins.innerText = pins;
+
+        // Update progress bars
+        const barLoad = document.getElementById('v-load-bar');
+        const barTemp = document.getElementById('v-temp-bar');
+        const barSpeed = document.getElementById('v-speed-bar');
+        const barPins = document.getElementById('v-pins-bar');
+        
+        if (barLoad) barLoad.style.width = `${load}%`;
+        if (barTemp) barTemp.style.width = `${(temp/100)*100}%`;
+        if (barSpeed) barSpeed.style.width = `${(speed/100)*100}%`;
+        if (barPins) barPins.style.width = `${(pins/8)*100}%`;
         
         // Update core visual states
         for (let i = 0; i < 24; i++) {
