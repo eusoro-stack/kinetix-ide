@@ -66,10 +66,20 @@ if ($pm2) {
 $python = Get-Command python -ErrorAction SilentlyContinue
 if ($python) {
     Write-Host "✓ Python detected: $(python --version)" -ForegroundColor Green
-    $hasPsutil = python -c "import psutil" 2>$null
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "- Installing psutil for system telemetry tracking..." -ForegroundColor DarkYellow
-        pip install psutil --quiet
+    $venvPath = Join-Path $baseDir ".venv"
+    if (-not (Test-Path $venvPath)) {
+        Write-Host "- Creating Python virtual environment (.venv)..." -ForegroundColor DarkYellow
+        Start-Process -FilePath python -ArgumentList "-m venv $venvPath" -Wait -NoNewWindow
+    }
+    
+    $pipPath = Join-Path (Join-Path $venvPath "Scripts") "pip.exe"
+    if (Test-Path $pipPath) {
+        Write-Host "- Installing telemetry dependencies (psutil, nvidia-ml-py) in virtual environment..." -ForegroundColor DarkYellow
+        Start-Process -FilePath $pipPath -ArgumentList "install psutil nvidia-ml-py --quiet" -Wait -NoNewWindow
+        Write-Host "✓ Telemetry dependencies installed in .venv." -ForegroundColor Green
+    } else {
+        Write-Warning "Could not locate pip in the virtual environment. Installing packages globally..."
+        pip install psutil nvidia-ml-py --quiet
     }
 } else {
     Write-Warning "Python 3 is recommended for the telemetry collectors script."

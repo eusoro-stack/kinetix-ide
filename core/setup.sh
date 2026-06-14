@@ -55,11 +55,20 @@ fi
 
 if command -v python3 &> /dev/null; then
     echo -e "\033[32m✓ Python 3 detected: $(python3 --version)\033[0m"
-    if python3 -c "import psutil" &> /dev/null; then
-        echo -e "\033[32m✓ Python package 'psutil' is installed.\033[0m"
+    VENV_PATH="$BASE_DIR/.venv"
+    if [ ! -d "$VENV_PATH" ]; then
+        echo -e "\033[33m- Creating Python virtual environment (.venv)...\033[0m"
+        python3 -m venv "$VENV_PATH"
+    fi
+    
+    PIP_PATH="$VENV_PATH/bin/pip"
+    if [ -f "$PIP_PATH" ]; then
+        echo -e "\033[33m- Installing telemetry dependencies (psutil, nvidia-ml-py) in .venv...\033[0m"
+        "$PIP_PATH" install psutil nvidia-ml-py --quiet
+        echo -e "\033[32m✓ Telemetry dependencies installed in .venv.\033[0m"
     else
-        echo -e "\033[33m- Installing 'psutil' for system telemetry tracking...\033[0m"
-        python3 -m pip install psutil --quiet
+        echo -e "\033[31m⚠️  Could not locate venv pip. Installing packages globally...\033[0m"
+        python3 -m pip install psutil nvidia-ml-py --quiet
     fi
 else
     echo -e "\033[31m⚠️  Python 3 is recommended for the telemetry collectors script.\033[0m"

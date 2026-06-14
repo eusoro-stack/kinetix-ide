@@ -2,8 +2,15 @@ const path = require('path');
 const os = require('os');
 const fs = require('fs');
 
-const venvPythonPath = path.join(__dirname, '..', '.venv', 'Scripts', 'python.exe');
-const pythonInterpreter = fs.existsSync(venvPythonPath) ? venvPythonPath : 'python';
+const winVenvPython = path.join(__dirname, '..', '.venv', 'Scripts', 'python.exe');
+const unixVenvPython = path.join(__dirname, '..', '.venv', 'bin', 'python');
+let pythonInterpreter = 'python';
+
+if (fs.existsSync(winVenvPython)) {
+  pythonInterpreter = winVenvPython;
+} else if (fs.existsSync(unixVenvPython)) {
+  pythonInterpreter = unixVenvPython;
+}
 
 module.exports = {
   apps: [
