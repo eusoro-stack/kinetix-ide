@@ -18,3 +18,13 @@ console/
 # Log files
 *.log
 logs/
+
+# Python Virtual Environments
+.venv/
+__pycache__/
+*.pyc
+
+# Video binaries
+*.mp4
+*.webm
+*.mov
