@@ -57,6 +57,82 @@ async function fetchMetrics() {
     document.getElementById('cpu-cores').innerText = `Cores: ${data.cpu.cores}`;
     document.getElementById('cpu-threads').innerText = `Threads: ${data.cpu.threads}`;
 
+    // Render/Update CPU Core Grid
+    const coreGrid = document.getElementById('cpu-core-grid');
+    if (coreGrid && data.cpu.per_core_percent) {
+      const pCores = data.cpu.p_cores || [];
+      const eCores = data.cpu.e_cores || [];
+      
+      // If the number of cells doesn't match the threads, clear and rebuild
+      if (coreGrid.children.length !== data.cpu.per_core_percent.length) {
+        coreGrid.innerHTML = '';
+        data.cpu.per_core_percent.forEach((pct, index) => {
+          const isP = pCores.includes(index);
+          const cell = document.createElement('div');
+          cell.className = `core-cell ${isP ? 'p-core' : 'e-core'}`;
+          cell.id = `core-cell-${index}`;
+          cell.title = `Core ${index} (${isP ? 'P-Core' : 'E-Core'}): 0%`;
+          cell.innerText = index;
+          coreGrid.appendChild(cell);
+        });
+      }
+      
+      // Update core cells load value and classes
+      data.cpu.per_core_percent.forEach((pct, index) => {
+        const cell = document.getElementById(`core-cell-${index}`);
+        if (cell) {
+          const load = Math.round(pct);
+          cell.title = `Core ${index} (${pCores.includes(index) ? 'P-Core' : 'E-Core'}): ${load}%`;
+          if (load > 5) {
+            cell.classList.add('active');
+            const opacity = 0.12 + (load / 100) * 0.5;
+            const accentColor = pCores.includes(index) ? '155, 81, 224' : '0, 242, 254';
+            cell.style.background = `rgba(${accentColor}, ${opacity})`;
+            cell.style.borderColor = `rgba(${accentColor}, ${0.3 + (load / 100) * 0.7})`;
+          } else {
+            cell.classList.remove('active');
+            cell.style.background = '';
+            cell.style.borderColor = '';
+          }
+        }
+      });
+    }
+
+    // Render/Update Core Affinity Scheduler logs
+    const affinityLog = document.getElementById('affinity-log-list');
+    const affinityStatus = document.getElementById('affinity-status');
+    if (affinityLog) {
+      if (data.cpu.pinned_processes && data.cpu.pinned_processes.length > 0) {
+        if (affinityStatus) {
+          affinityStatus.innerText = 'Active';
+          affinityStatus.className = 'badge active';
+        }
+        let logsHtml = '';
+        data.cpu.pinned_processes.forEach(proc => {
+          const coresFormatted = proc.cores.length > 4 
+            ? `[${proc.cores[0]}-${proc.cores[proc.cores.length-1]}]`
+            : `[${proc.cores.join(',')}]`;
+            
+          logsHtml += `
+            <li class="affinity-log-item">
+              <span class="proc-name" title="${proc.name}">${proc.name}</span>
+              <div class="proc-meta">
+                <span class="proc-type ${proc.type}">${proc.type}</span>
+                <span class="proc-cores">${coresFormatted}</span>
+              </div>
+            </li>
+          `;
+        });
+        affinityLog.innerHTML = logsHtml;
+      } else {
+        if (affinityStatus) {
+          affinityStatus.innerText = 'Idle';
+          affinityStatus.className = 'badge';
+        }
+        affinityLog.innerHTML = '<li class="empty-log" style="color:var(--text-muted);font-size:0.75rem;">No active processes pinned.</li>';
+      }
+    }
+
     // Memory Metrics
     document.getElementById('ram-percent').innerText = `${data.memory.percent}%`;
     document.getElementById('ram-bar').style.width = `${data.memory.percent}%`;

@@ -58,6 +58,65 @@
     </div>
   </section>
 
+  <!-- Scheduler Demo Section -->
+  <section class="scheduler-demo-section">
+    <div class="card glass-card demo-card">
+      <div class="demo-grid-wrapper">
+        <div class="demo-side info-side">
+          <span class="demo-badge">REAL-TIME CPU OPTIMIZATION</span>
+          <h3>Dynamic P/E-Core Isolation</h3>
+          <p>Watch how Kinetix automatically scans system tasks and routes heavy workloads. Large language models are locked to high-performance cores, while telemetry and RAG database agents are isolated on efficient cores.</p>
+          <div class="routed-processes">
+            <div class="route-item p-route">
+              <span class="route-tag p-tag">Ollama Server</span>
+              <span class="arrow">&rarr;</span>
+              <span class="target-cores p-target">Performance Cores [0-15]</span>
+            </div>
+            <div class="route-item e-route">
+              <span class="route-tag e-tag">RAG Syncer</span>
+              <span class="arrow">&rarr;</span>
+              <span class="target-cores e-target">Efficient Cores [16-23]</span>
+            </div>
+          </div>
+        </div>
+        <div class="demo-side visual-side">
+          <div class="mock-core-grid">
+            <!-- 24 threads for a modern i9 setup -->
+            <div class="mock-core p-mock active pulse-fast">0</div>
+            <div class="mock-core p-mock active pulse-fast">1</div>
+            <div class="mock-core p-mock active pulse-fast">2</div>
+            <div class="mock-core p-mock active pulse-fast">3</div>
+            <div class="mock-core p-mock active">4</div>
+            <div class="mock-core p-mock active">5</div>
+            <div class="mock-core p-mock">6</div>
+            <div class="mock-core p-mock">7</div>
+            <div class="mock-core p-mock active">8</div>
+            <div class="mock-core p-mock active">9</div>
+            <div class="mock-core p-mock">10</div>
+            <div class="mock-core p-mock">11</div>
+            <div class="mock-core p-mock">12</div>
+            <div class="mock-core p-mock">13</div>
+            <div class="mock-core p-mock">14</div>
+            <div class="mock-core p-mock">15</div>
+            
+            <div class="mock-core e-mock active pulse-slow">16</div>
+            <div class="mock-core e-mock active pulse-slow">17</div>
+            <div class="mock-core e-mock active pulse-slow">18</div>
+            <div class="mock-core e-mock active pulse-slow">19</div>
+            <div class="mock-core e-mock active">20</div>
+            <div class="mock-core e-mock active">21</div>
+            <div class="mock-core e-mock active">22</div>
+            <div class="mock-core e-mock active">23</div>
+          </div>
+          <div class="grid-legend">
+            <span>P-Cores (HT Threads)</span>
+            <span>E-Cores</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- Features Grid -->
   <section class="features" id="features">
     <div class="section-header">

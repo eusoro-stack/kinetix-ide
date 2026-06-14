@@ -78,6 +78,11 @@
               <div class="gauge-sub">
                 <span id="cpu-cores">Cores: 0</span> | <span id="cpu-threads">Threads: 0</span>
               </div>
+              
+              <!-- CPU Core Grid Monitor -->
+              <div class="core-grid" id="cpu-core-grid">
+                <!-- Dynamically populated core cells -->
+              </div>
             </div>
 
             <!-- RAM Gauge -->
@@ -143,6 +148,23 @@
                 <span class="val-large" id="gpu-vram-bytes">0 GB</span>
               </div>
             </div>
+          </div>
+        </div>
+
+        <!-- CPU Core Affinity Card -->
+        <div class="card glass-card" id="affinity-card">
+          <div class="card-header">
+            <h3>🧬 Core Affinity Scheduler</h3>
+            <span class="badge active" id="affinity-status">Auto-Aligning</span>
+          </div>
+          <div class="topology-legend">
+            <div class="legend-item"><span class="legend-dot p-core"></span> P-Cores (Inference)</div>
+            <div class="legend-item"><span class="legend-dot e-core"></span> E-Cores (Background)</div>
+          </div>
+          <div class="affinity-log-wrapper">
+            <ul class="affinity-log-list" id="affinity-log-list">
+              <li class="empty-log">Scanning process topology...</li>
+            </ul>
           </div>
         </div>
 

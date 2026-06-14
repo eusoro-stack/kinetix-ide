@@ -457,3 +457,202 @@ body {
   font-size: 0.8rem;
   color: var(--text-muted);
 }
+
+/* Scheduler Demo Section */
+.scheduler-demo-section {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 2rem 5% 4rem;
+}
+
+.demo-card {
+  border: 1px solid rgba(155, 81, 224, 0.2) !important;
+  background: linear-gradient(135deg, rgba(18, 22, 33, 0.75) 0%, rgba(155, 81, 224, 0.05) 100%) !important;
+}
+
+.demo-grid-wrapper {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 3rem;
+  align-items: center;
+}
+
+@media (max-width: 768px) {
+  .demo-grid-wrapper {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+}
+
+.demo-side {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  text-align: left;
+}
+
+.demo-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--accent-purple);
+  margin-bottom: -0.25rem;
+}
+
+.demo-side h3 {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  font-weight: 800;
+  color: #fff;
+  line-height: 1.2;
+}
+
+.demo-side p {
+  color: var(--text-secondary);
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+.routed-processes {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.route-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  background: rgba(0,0,0,0.2);
+  border: 1px solid rgba(255,255,255,0.03);
+  padding: 0.8rem 1.2rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+
+.route-item.p-route {
+  border-color: rgba(155, 81, 224, 0.15);
+}
+
+.route-item.e-route {
+  border-color: rgba(0, 242, 254, 0.15);
+}
+
+.route-tag {
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+}
+
+.route-tag.p-tag {
+  background: rgba(155, 81, 224, 0.15);
+  color: var(--accent-purple);
+  border: 1px solid rgba(155, 81, 224, 0.2);
+}
+
+.route-tag.e-tag {
+  background: rgba(0, 242, 254, 0.15);
+  color: var(--accent-blue);
+  border: 1px solid rgba(0, 242, 254, 0.2);
+}
+
+.arrow {
+  color: var(--text-muted);
+  font-weight: bold;
+}
+
+.target-cores {
+  font-weight: 500;
+}
+
+.target-cores.p-target {
+  color: #fff;
+  text-shadow: 0 0 8px rgba(155, 81, 224, 0.3);
+}
+
+.target-cores.e-target {
+  color: #fff;
+  text-shadow: 0 0 8px rgba(0, 242, 254, 0.3);
+}
+
+/* Mock Core Grid Visuals */
+.mock-core-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+  background: rgba(0,0,0,0.3);
+  padding: 1.2rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.04);
+}
+
+.mock-core {
+  aspect-ratio: 1;
+  background: rgba(255,255,255,0.01);
+  border: 1px solid rgba(255,255,255,0.03);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  transition: all 0.3s ease;
+}
+
+.mock-core.p-mock {
+  border-color: rgba(155, 81, 224, 0.1);
+}
+
+.mock-core.e-mock {
+  border-color: rgba(0, 242, 254, 0.1);
+}
+
+.mock-core.p-mock.active {
+  background: rgba(155, 81, 224, 0.1);
+  border-color: var(--accent-purple);
+  color: #fff;
+  text-shadow: 0 0 6px var(--accent-purple);
+}
+
+.mock-core.e-mock.active {
+  background: rgba(0, 242, 254, 0.08);
+  border-color: var(--accent-blue);
+  color: #fff;
+  text-shadow: 0 0 6px var(--accent-blue);
+}
+
+/* Animations for pulsing mock cores */
+.pulse-fast {
+  animation: mock-pulse-purple 1.5s infinite ease-in-out;
+}
+
+.pulse-slow {
+  animation: mock-pulse-blue 3s infinite ease-in-out;
+}
+
+@keyframes mock-pulse-purple {
+  0% { background-color: rgba(155, 81, 224, 0.1); box-shadow: 0 0 4px rgba(155, 81, 224, 0.2); }
+  50% { background-color: rgba(155, 81, 224, 0.25); box-shadow: 0 0 12px rgba(155, 81, 224, 0.4); }
+  100% { background-color: rgba(155, 81, 224, 0.1); box-shadow: 0 0 4px rgba(155, 81, 224, 0.2); }
+}
+
+@keyframes mock-pulse-blue {
+  0% { background-color: rgba(0, 242, 254, 0.08); box-shadow: 0 0 4px rgba(0, 242, 254, 0.1); }
+  50% { background-color: rgba(0, 242, 254, 0.18); box-shadow: 0 0 10px rgba(0, 242, 254, 0.3); }
+  100% { background-color: rgba(0, 242, 254, 0.08); box-shadow: 0 0 4px rgba(0, 242, 254, 0.1); }
+}
+
+.grid-legend {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  padding: 0.5rem 0.25rem 0;
+  font-weight: 500;
+}

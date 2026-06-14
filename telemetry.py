@@ -41,6 +41,50 @@ def parse_args():
     parser.add_argument("--bigquery", action="store_true", help="Stream telemetry directly to Google Cloud BigQuery")
     return parser.parse_args()
 
+def apply_core_affinity(p_threads, e_threads):
+    pinned_log = []
+    try:
+        import psutil
+        # Scan active processes
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            try:
+                name = proc.info['name'].lower() if proc.info['name'] else ""
+                pid = proc.info['pid']
+                
+                # Check for high-priority inference processes
+                if 'ollama' in name or 'llama' in name:
+                    # Pin to P-cores
+                    proc.cpu_affinity(p_threads)
+                    pinned_log.append({
+                        "pid": pid,
+                        "name": proc.info['name'],
+                        "type": "inference",
+                        "cores": p_threads
+                    })
+                # Check for background tasks running under our ide setup
+                elif name in ['node.exe', 'python.exe', 'pm2.exe'] or 'node' in name or 'python' in name:
+                    cmdline = proc.info['cmdline']
+                    cmdline_str = " ".join(cmdline).lower() if cmdline else ""
+                    
+                    is_kinetix_task = False
+                    if any(k in cmdline_str for k in ['kinetix', 'telemetry', 'rag_agent', 'serve_cors', 'make_video']):
+                        is_kinetix_task = True
+                    
+                    if is_kinetix_task:
+                        # Pin to E-cores
+                        proc.cpu_affinity(e_threads)
+                        pinned_log.append({
+                            "pid": pid,
+                            "name": proc.info['name'],
+                            "type": "background",
+                            "cores": e_threads
+                        })
+            except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+                continue
+    except Exception as e:
+        print(f"Error in core affinity manager: {e}", file=sys.stderr)
+    return pinned_log
+
 def get_system_metrics():
     metrics = {
         "timestamp": datetime.utcnow().isoformat() + "Z",
@@ -56,8 +100,35 @@ def get_system_metrics():
     try:
         import psutil
         metrics["cpu"]["percent"] = psutil.cpu_percent(interval=None)
-        metrics["cpu"]["cores"] = psutil.cpu_count(logical=False)
-        metrics["cpu"]["threads"] = psutil.cpu_count(logical=True)
+        metrics["cpu"]["cores"] = psutil.cpu_count(logical=False) or 4
+        metrics["cpu"]["threads"] = psutil.cpu_count(logical=True) or 4
+        
+        # CPU Topology Identification
+        logical_cores = metrics["cpu"]["threads"]
+        physical_cores = metrics["cpu"]["cores"]
+        
+        # Heuristic for hybrid cores (Intel Alder Lake / Raptor Lake):
+        # HT physical cores have 2 threads, E-cores have 1.
+        # H = L - P
+        ht_cores = logical_cores - physical_cores
+        if ht_cores > 0:
+            p_core_threads = list(range(0, 2 * ht_cores))
+            e_core_threads = list(range(2 * ht_cores, logical_cores))
+        else:
+            # Fallback for symmetrical CPUs:
+            # Split cores in half: lower half for P-cores, upper half for E-cores
+            p_core_threads = list(range(0, max(1, logical_cores // 2)))
+            e_core_threads = list(range(max(1, logical_cores // 2), logical_cores))
+            if not e_core_threads:
+                e_core_threads = [0]
+                
+        metrics["cpu"]["p_cores"] = p_core_threads
+        metrics["cpu"]["e_cores"] = e_core_threads
+        metrics["cpu"]["per_core_percent"] = psutil.cpu_percent(interval=None, percpu=True)
+        
+        # Execute Process Pinning
+        metrics["cpu"]["pinned_processes"] = apply_core_affinity(p_core_threads, e_core_threads)
+        
         if sys.platform != 'win32':
             metrics["cpu"]["load_avg"] = os.getloadavg()
         else:
@@ -85,6 +156,10 @@ def get_system_metrics():
         metrics["cpu"]["percent"] = 10.0
         metrics["cpu"]["cores"] = os.cpu_count() or 4
         metrics["cpu"]["threads"] = os.cpu_count() or 4
+        metrics["cpu"]["p_cores"] = list(range(metrics["cpu"]["threads"] // 2))
+        metrics["cpu"]["e_cores"] = list(range(metrics["cpu"]["threads"] // 2, metrics["cpu"]["threads"]))
+        metrics["cpu"]["per_core_percent"] = [10.0] * metrics["cpu"]["threads"]
+        metrics["cpu"]["pinned_processes"] = []
         metrics["cpu"]["load_avg"] = [0.0, 0.0, 0.0]
         
         total_mem = 16 * 1024 * 1024 * 1024
