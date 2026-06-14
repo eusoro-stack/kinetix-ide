@@ -1,5 +1,9 @@
 const path = require('path');
 const os = require('os');
+const fs = require('fs');
+
+const venvPythonPath = path.join(__dirname, '..', '.venv', 'Scripts', 'python.exe');
+const pythonInterpreter = fs.existsSync(venvPythonPath) ? venvPythonPath : 'python';
 
 module.exports = {
   apps: [
@@ -19,6 +23,7 @@ module.exports = {
     {
       name: 'kinetix-telemetry',
       script: 'telemetry.py',
+      interpreter: pythonInterpreter,
       args: ['--interval', '5'],
       cwd: path.join(__dirname, '..'),
       instances: 1,

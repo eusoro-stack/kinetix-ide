@@ -15,6 +15,24 @@ try:
 except ImportError:
     pass
 
+# Global NVML (NVIDIA Management Library) State for zero-overhead telemetry
+NVML_AVAILABLE = False
+NVML_DEVICE_HANDLE = None
+
+def init_nvml():
+    global NVML_AVAILABLE, NVML_DEVICE_HANDLE
+    try:
+        import pynvml
+        pynvml.nvmlInit()
+        # Cache handle for the first GPU device (index 0)
+        NVML_DEVICE_HANDLE = pynvml.nvmlDeviceGetHandleByIndex(0)
+        NVML_AVAILABLE = True
+        print("[NVML] Native GPU library initialized. Zero-overhead querying active.")
+    except Exception as e:
+        NVML_AVAILABLE = False
+        NVML_DEVICE_HANDLE = None
+        print(f"[NVML] Initialization failed: {e}. Falling back to nvidia-smi subprocess.")
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Kinetix Telemetry Collector Daemon")
     parser.parser_path = os.path.dirname(os.path.abspath(__file__))
@@ -93,45 +111,90 @@ def get_system_metrics():
                 "percent": 50.0
             }
 
-    # 4. GPU Metrics via nvidia-smi
-    nvidia_smi_path = shutil.which("nvidia-smi")
-    if not nvidia_smi_path and sys.platform == 'win32':
-        check_paths = [
-            r"C:\Program Files\NVIDIA Corporation\NVSMI\nvidia-smi.exe",
-            r"C:\Windows\System32\nvidia-smi.exe"
-        ]
-        for p in check_paths:
-            if os.path.exists(p):
-                nvidia_smi_path = p
-                break
-
-    if nvidia_smi_path:
+    # 4. GPU Metrics
+    gpu_metrics_retrieved = False
+    
+    # Try using in-process NVML bindings first for zero-overhead querying
+    if NVML_AVAILABLE and NVML_DEVICE_HANDLE is not None:
         try:
-            res = subprocess.run(
-                [nvidia_smi_path, "--query-gpu=name,temperature.gpu,memory.total,memory.used,utilization.gpu", "--format=csv,noheader,nounits"],
-                capture_output=True, text=True, check=True
-            )
-            lines = res.stdout.strip().split('\n')
-            if lines and ',' in lines[0]:
-                parts = [p.strip() for p in lines[0].split(',')]
-                vram_total_mib = float(parts[2])
-                vram_used_mib = float(parts[3])
-                vram_percent = round((vram_used_mib / vram_total_mib) * 100, 2)
+            import pynvml
+            
+            # Query name
+            name = pynvml.nvmlDeviceGetName(NVML_DEVICE_HANDLE)
+            if isinstance(name, bytes):
+                name = name.decode('utf-8')
                 
-                metrics["gpu"] = {
-                    "available": True,
-                    "name": parts[0],
-                    "temperature": int(parts[1]),
-                    "vram": {
-                        "total_bytes": int(vram_total_mib * 1024 * 1024),
-                        "used_bytes": int(vram_used_mib * 1024 * 1024),
-                        "free_bytes": int((vram_total_mib - vram_used_mib) * 1024 * 1024),
-                        "percent": vram_percent
-                    },
-                    "utilization": int(parts[4])
-                }
+            # Query temperature
+            temp = pynvml.nvmlDeviceGetTemperature(NVML_DEVICE_HANDLE, pynvml.NVML_TEMPERATURE_GPU)
+            
+            # Query memory (VRAM)
+            mem_info = pynvml.nvmlDeviceGetMemoryInfo(NVML_DEVICE_HANDLE)
+            vram_total = mem_info.total
+            vram_used = mem_info.used
+            vram_free = mem_info.free
+            vram_percent = round((vram_used / vram_total) * 100, 2) if vram_total > 0 else 0.0
+            
+            # Query utilization
+            util_info = pynvml.nvmlDeviceGetUtilizationRates(NVML_DEVICE_HANDLE)
+            gpu_util = util_info.gpu
+            
+            metrics["gpu"] = {
+                "available": True,
+                "name": name,
+                "temperature": int(temp),
+                "vram": {
+                    "total_bytes": int(vram_total),
+                    "used_bytes": int(vram_used),
+                    "free_bytes": int(vram_free),
+                    "percent": vram_percent
+                },
+                "utilization": int(gpu_util)
+            }
+            gpu_metrics_retrieved = True
         except Exception as e:
-            metrics["gpu"]["error"] = str(e)
+            metrics["gpu"]["error_nvml"] = f"NVML query error: {str(e)}"
+
+    # Fallback to legacy subprocess for nvidia-smi if NVML is not configured/fails
+    if not gpu_metrics_retrieved:
+        nvidia_smi_path = shutil.which("nvidia-smi")
+        if not nvidia_smi_path and sys.platform == 'win32':
+            check_paths = [
+                r"C:\Program Files\NVIDIA Corporation\NVSMI\nvidia-smi.exe",
+                r"C:\Windows\System32\nvidia-smi.exe"
+            ]
+            for p in check_paths:
+                if os.path.exists(p):
+                    nvidia_smi_path = p
+                    break
+
+        if nvidia_smi_path:
+            try:
+                res = subprocess.run(
+                    [nvidia_smi_path, "--query-gpu=name,temperature.gpu,memory.total,memory.used,utilization.gpu", "--format=csv,noheader,nounits"],
+                    capture_output=True, text=True, check=True
+                )
+                lines = res.stdout.strip().split('\n')
+                if lines and ',' in lines[0]:
+                    parts = [p.strip() for p in lines[0].split(',')]
+                    vram_total_mib = float(parts[2])
+                    vram_used_mib = float(parts[3])
+                    vram_percent = round((vram_used_mib / vram_total_mib) * 100, 2)
+                    
+                    metrics["gpu"] = {
+                        "available": True,
+                        "name": parts[0],
+                        "temperature": int(parts[1]),
+                        "vram": {
+                            "total_bytes": int(vram_total_mib * 1024 * 1024),
+                            "used_bytes": int(vram_used_mib * 1024 * 1024),
+                            "free_bytes": int((vram_total_mib - vram_used_mib) * 1024 * 1024),
+                            "percent": vram_percent
+                        },
+                        "utilization": int(parts[4])
+                    }
+                    gpu_metrics_retrieved = True
+            except Exception as e:
+                metrics["gpu"]["error_smi"] = f"nvidia-smi fallback error: {str(e)}"
             
     # Calculate Node Health Grade
     cpu_percent = metrics["cpu"]["percent"]
@@ -204,24 +267,37 @@ def main():
     print(f"Kinetix Telemetry Collector started. Interval: {args.interval}s.")
     print(f"Metrics output node: {args.output}")
 
-    while True:
-        try:
-            metrics = get_system_metrics()
-            
-            # Write local JSON safely
-            temp_output = args.output + ".tmp"
-            with open(temp_output, "w") as f:
-                json.dump(metrics, f, indent=2)
-            os.replace(temp_output, args.output)
-            
-            # Stream to BQ if CLI flag set or env configured
-            if args.bigquery or os.environ.get("GCP_PROJECT_ID"):
-                stream_to_bigquery(metrics)
+    # Initialize NVML once at process boot
+    init_nvml()
+
+    try:
+        while True:
+            try:
+                metrics = get_system_metrics()
                 
-        except Exception as e:
-            print(f"Error in telemetry loop: {e}", file=sys.stderr)
-            
-        time.sleep(args.interval)
+                # Write local JSON safely
+                temp_output = args.output + ".tmp"
+                with open(temp_output, "w") as f:
+                    json.dump(metrics, f, indent=2)
+                os.replace(temp_output, args.output)
+                
+                # Stream to BQ if CLI flag set or env configured
+                if args.bigquery or os.environ.get("GCP_PROJECT_ID"):
+                    stream_to_bigquery(metrics)
+                    
+            except Exception as e:
+                print(f"Error in telemetry loop: {e}", file=sys.stderr)
+                
+            time.sleep(args.interval)
+    finally:
+        # Gracefully shutdown NVML if initialized
+        if NVML_AVAILABLE:
+            try:
+                import pynvml
+                pynvml.nvmlShutdown()
+                print("[NVML] Shutdown complete.")
+            except Exception:
+                pass
 
 if __name__ == "__main__":
     main()
