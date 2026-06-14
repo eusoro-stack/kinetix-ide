@@ -58,61 +58,68 @@
     </div>
   </section>
 
-  <!-- Scheduler Demo Section -->
+  <!-- Scheduler Simulator Section -->
   <section class="scheduler-demo-section">
     <div class="card glass-card demo-card">
       <div class="demo-grid-wrapper">
+        
+        <!-- Left Side: Interactive Controls & Vitals -->
         <div class="demo-side info-side">
-          <span class="demo-badge">REAL-TIME CPU OPTIMIZATION</span>
+          <span class="demo-badge">REAL-TIME WORKSTATION SIMULATOR</span>
           <h3>Dynamic P/E-Core Isolation</h3>
-          <p>Watch how Kinetix automatically scans system tasks and routes heavy workloads. Large language models are locked to high-performance cores, while telemetry and RAG database agents are isolated on efficient cores.</p>
-          <div class="routed-processes">
-            <div class="route-item p-route">
-              <span class="route-tag p-tag">Ollama Server</span>
-              <span class="arrow">&rarr;</span>
-              <span class="target-cores p-target">Performance Cores [0-15]</span>
+          <p>Click the controls below to simulate local workloads and see how Kinetix automatically partitions tasks to eliminate latency spikes.</p>
+          
+          <div class="simulator-controls">
+            <button class="sim-btn p-btn" id="btn-sim-llm">Load LLM Context (P-Cores)</button>
+            <button class="sim-btn e-btn" id="btn-sim-rag">Trigger RAG Sync (E-Cores)</button>
+            <button class="sim-btn reset-btn" id="btn-sim-reset">Reset Workstation</button>
+          </div>
+
+          <div class="sim-vitals-grid">
+            <div class="vitals-item">
+              <span class="v-label">System Load</span>
+              <span class="v-value" id="vitals-load">12%</span>
             </div>
-            <div class="route-item e-route">
-              <span class="route-tag e-tag">RAG Syncer</span>
-              <span class="arrow">&rarr;</span>
-              <span class="target-cores e-target">Efficient Cores [16-23]</span>
+            <div class="vitals-item">
+              <span class="v-label">CPU Temp</span>
+              <span class="v-value" id="vitals-temp">41°C</span>
+            </div>
+            <div class="vitals-item">
+              <span class="v-label">Inference Speed</span>
+              <span class="v-value" id="vitals-speed">0 t/s</span>
+            </div>
+            <div class="vitals-item">
+              <span class="v-label">Active Pins</span>
+              <span class="v-value" id="vitals-pins">0</span>
             </div>
           </div>
         </div>
+        
+        <!-- Right Side: CPU Core Grid & Mock Terminal -->
         <div class="demo-side visual-side">
-          <div class="mock-core-grid">
-            <!-- 24 threads for a modern i9 setup -->
-            <div class="mock-core p-mock active pulse-fast">0</div>
-            <div class="mock-core p-mock active pulse-fast">1</div>
-            <div class="mock-core p-mock active pulse-fast">2</div>
-            <div class="mock-core p-mock active pulse-fast">3</div>
-            <div class="mock-core p-mock active">4</div>
-            <div class="mock-core p-mock active">5</div>
-            <div class="mock-core p-mock">6</div>
-            <div class="mock-core p-mock">7</div>
-            <div class="mock-core p-mock active">8</div>
-            <div class="mock-core p-mock active">9</div>
-            <div class="mock-core p-mock">10</div>
-            <div class="mock-core p-mock">11</div>
-            <div class="mock-core p-mock">12</div>
-            <div class="mock-core p-mock">13</div>
-            <div class="mock-core p-mock">14</div>
-            <div class="mock-core p-mock">15</div>
-            
-            <div class="mock-core e-mock active pulse-slow">16</div>
-            <div class="mock-core e-mock active pulse-slow">17</div>
-            <div class="mock-core e-mock active pulse-slow">18</div>
-            <div class="mock-core e-mock active pulse-slow">19</div>
-            <div class="mock-core e-mock active">20</div>
-            <div class="mock-core e-mock active">21</div>
-            <div class="mock-core e-mock active">22</div>
-            <div class="mock-core e-mock active">23</div>
+          <div class="mock-core-grid" id="sim-core-grid">
+            <!-- 24 thread blocks dynamically initialized -->
           </div>
+          
           <div class="grid-legend">
-            <span>P-Cores (HT Threads)</span>
-            <span>E-Cores</span>
+            <span>Logical Threads 0-15: Performance Cores</span>
+            <span>Threads 16-23: Efficient Cores</span>
+          </div>
+
+          <!-- Live Terminal Log -->
+          <div class="sim-terminal">
+            <div class="terminal-header">
+              <span class="term-dot"></span><span class="term-dot"></span><span class="term-dot"></span>
+              <span class="term-title">kinetix-scheduler.log</span>
+            </div>
+            <div class="terminal-body" id="sim-log-feed">
+              <div class="log-row sys">[0.00s] Kinetix Scheduler daemon initialized.</div>
+              <div class="log-row sys">[0.02s] 24 logical threads detected (16 P-threads, 8 E-threads).</div>
+              <div class="log-row info">[0.05s] Idle state active. Awaiting workstation commands...</div>
+            </div>
           </div>
         </div>
+
       </div>
     </div>
   </section>
@@ -212,5 +219,144 @@
     <p>&copy; 2026 Enefiok Usoro. Kinetix IDE is licensed under the MIT License.</p>
   </footer>
 
+  <script>
+    // Live Workstation Simulator Logic
+    document.addEventListener('DOMContentLoaded', () => {
+      const coreGrid = document.getElementById('sim-core-grid');
+      const logFeed = document.getElementById('sim-log-feed');
+      
+      const vLoad = document.getElementById('vitals-load');
+      const vTemp = document.getElementById('vitals-temp');
+      const vSpeed = document.getElementById('vitals-speed');
+      const vPins = document.getElementById('vitals-pins');
+      
+      const btnLlm = document.getElementById('btn-sim-llm');
+      const btnRag = document.getElementById('btn-sim-rag');
+      const btnReset = document.getElementById('btn-sim-reset');
+      
+      let llmActive = false;
+      let ragActive = false;
+      let startTime = Date.now();
+      
+      // Initialize core grid HTML
+      function initGrid() {
+        coreGrid.innerHTML = '';
+        for (let i = 0; i < 24; i++) {
+          const isP = i < 16;
+          const core = document.createElement('div');
+          core.className = `mock-core ${isP ? 'p-mock' : 'e-mock'}`;
+          core.id = `sim-core-${i}`;
+          core.innerText = i;
+          coreGrid.appendChild(core);
+        }
+      }
+      
+      function addLog(message, type = 'info') {
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+        const row = document.createElement('div');
+        row.className = `log-row ${type}`;
+        row.innerHTML = `<span class="log-time">[${elapsed}s]</span> ${message}`;
+        logFeed.appendChild(row);
+        logFeed.scrollTop = logFeed.scrollHeight;
+      }
+      
+      function updateVitals() {
+        let load = 12;
+        let temp = 41;
+        let speed = 0;
+        let pins = 0;
+        
+        if (llmActive) {
+          load += 58;
+          temp += 21;
+          speed = 64;
+          pins += 2; // ollama and ollama_llama_server
+        }
+        if (ragActive) {
+          load += 18;
+          temp += 6;
+          pins += 3; // node server, telemetry python, rag worker
+        }
+        
+        vLoad.innerText = `${load}%`;
+        vTemp.innerText = `${temp}°C`;
+        vSpeed.innerText = `${speed} t/s`;
+        vPins.innerText = pins;
+        
+        // Update core visual states
+        for (let i = 0; i < 24; i++) {
+          const core = document.getElementById(`sim-core-${i}`);
+          if (!core) continue;
+          
+          const isP = i < 16;
+          if (isP) {
+            if (llmActive) {
+              core.className = 'mock-core p-mock active pulse-fast';
+            } else {
+              core.className = 'mock-core p-mock';
+            }
+          } else {
+            if (ragActive) {
+              core.className = 'mock-core e-mock active pulse-slow';
+            } else {
+              core.className = 'mock-core e-mock';
+            }
+          }
+        }
+      }
+      
+      btnLlm.addEventListener('click', () => {
+        if (!llmActive) {
+          llmActive = true;
+          addLog("Inference request initialized: llama3.1-8b context load.", "warn");
+          addLog("Affinity Scheduler: Detected processes [ollama.exe, ollama_llama_server.exe].", "info");
+          addLog("Binding PID 32252 to P-Cores [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].", "success");
+          btnLlm.innerText = "LLM Context Running";
+          btnLlm.classList.add('active');
+        } else {
+          llmActive = false;
+          addLog("Inference request closed. Unloading model from GPU VRAM.", "info");
+          btnLlm.innerText = "Load LLM Context (P-Cores)";
+          btnLlm.classList.remove('active');
+        }
+        updateVitals();
+      });
+      
+      btnRag.addEventListener('click', () => {
+        if (!ragActive) {
+          ragActive = true;
+          addLog("RAG database sync triggered. Document batch size: 2,500.", "info");
+          addLog("Affinity Scheduler: Detected Kinetix processes [python.exe, node.exe].", "info");
+          addLog("Isolating PIDs [17708, 43476, 43968] on E-Cores [16, 17, 18, 19, 20, 21, 22, 23].", "success");
+          btnRag.innerText = "RAG Worker Running";
+          btnRag.classList.add('active');
+        } else {
+          ragActive = false;
+          addLog("RAG synchronization worker finished. Entering sleep.", "info");
+          btnRag.innerText = "Trigger RAG Sync (E-Cores)";
+          btnRag.classList.remove('active');
+        }
+        updateVitals();
+      });
+      
+      btnReset.addEventListener('click', () => {
+        llmActive = false;
+        ragActive = false;
+        btnLlm.innerText = "Load LLM Context (P-Cores)";
+        btnLlm.classList.remove('active');
+        btnRag.innerText = "Trigger RAG Sync (E-Cores)";
+        btnRag.classList.remove('active');
+        logFeed.innerHTML = '';
+        startTime = Date.now();
+        addLog("Workstation scheduler mappings cleared.", "sys");
+        addLog("Cores returned to unmanaged OS scheduling state.", "info");
+        updateVitals();
+      });
+      
+      // Init
+      initGrid();
+      updateVitals();
+    });
+  </script>
 </body>
 </html>
