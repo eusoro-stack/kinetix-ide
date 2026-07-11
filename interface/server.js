@@ -627,8 +627,10 @@ async function startTelegramBot() {
   }
 }
 
-// Start bot daemon
-startTelegramBot();
+// Start bot daemon only on macOS Host to avoid long-polling conflicts
+if (process.platform === 'darwin') {
+  startTelegramBot();
+}
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`==================================================`);
