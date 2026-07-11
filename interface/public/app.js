@@ -25,10 +25,25 @@ function formatUptime(seconds) {
   return res;
 }
 
+let activeNode = 'mac';
+
+function switchNode(node) {
+  if (activeNode === node) return;
+  activeNode = node;
+  
+  document.getElementById('tab-mac').classList.toggle('active', node === 'mac');
+  document.getElementById('tab-alienware').classList.toggle('active', node === 'alienware');
+  
+  // Re-fetch metrics and PM2 lists immediately
+  fetchMetrics();
+  fetchPM2();
+}
+
 // Fetch System Telemetry Metrics
 async function fetchMetrics() {
   try {
-    const res = await fetch('/api/metrics');
+    const endpoint = activeNode === 'mac' ? '/api/metrics' : '/api/metrics/alienware';
+    const res = await fetch(endpoint);
     if (!res.ok) throw new Error('API request failed');
     const data = await res.json();
     
@@ -183,7 +198,8 @@ async function fetchMetrics() {
 // Fetch PM2 Processes
 async function fetchPM2() {
   try {
-    const res = await fetch('/api/pm2');
+    const endpoint = activeNode === 'mac' ? '/api/pm2' : '/api/pm2/alienware';
+    const res = await fetch(endpoint);
     if (!res.ok) throw new Error('PM2 request failed');
     const data = await res.json();
 
@@ -250,7 +266,8 @@ async function fetchPM2() {
 // PM2 Action Trigger
 async function controlPM2(action, id) {
   try {
-    const res = await fetch('/api/pm2/control', {
+    const endpoint = activeNode === 'mac' ? '/api/pm2/control' : '/api/pm2/control/alienware';
+    const res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action, id })
@@ -729,6 +746,7 @@ function clearConsoleLog() {
 }
 
 // Bind to window to allow HTML button handlers to call them
+window.switchNode = switchNode;
 window.previewRoonVol = previewRoonVol;
 window.setRoonVol = setRoonVol;
 window.pbRoon = pbRoon;

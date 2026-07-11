@@ -326,6 +326,59 @@ app.get('/api/system/status', async (req, res) => {
   });
 });
 
+// ── Alienware Telemetry & PM2 Proxy Routes ────────────────────────────────────
+const ALIENWARE_SERVER = 'http://100.113.127.103:3000';
+
+app.get('/api/metrics/alienware', async (req, res) => {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1200);
+
+    const response = await fetch(`${ALIENWARE_SERVER}/api/metrics`, { signal: controller.signal });
+    clearTimeout(timeoutId);
+
+    if (!response.ok) throw new Error(`Alienware HTTP status ${response.status}`);
+    const data = await response.json();
+    data.collector_active = true;
+    res.json(data);
+  } catch (err) {
+    res.json({
+      collector_active: false,
+      error: `Could not reach Alienware: ${err.message}`
+    });
+  }
+});
+
+app.get('/api/pm2/alienware', async (req, res) => {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 1500);
+
+    const response = await fetch(`${ALIENWARE_SERVER}/api/pm2`, { signal: controller.signal });
+    clearTimeout(timeoutId);
+
+    if (!response.ok) throw new Error(`Alienware PM2 status ${response.status}`);
+    const data = await response.json();
+    res.json(data);
+  } catch (err) {
+    res.json({ pm2_active: false, error: err.message });
+  }
+});
+
+app.post('/api/pm2/control/alienware', async (req, res) => {
+  try {
+    const response = await fetch(`${ALIENWARE_SERVER}/api/pm2/control`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    const data = await response.json();
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 /**
  * POST /api/system/sync_calibration
  * Executes the subwoofer calibration profile sync script
