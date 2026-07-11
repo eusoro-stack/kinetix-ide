@@ -392,14 +392,352 @@ async function initialize() {
   fetchMetrics();
   fetchPM2();
   fetchOllama();
+  
+  // Audiophile Initial triggers
+  pollRoon();
+  loadHudSubProfiles();
+  pollMeshStatus();
 
   // Polling loops
   setInterval(fetchMetrics, POLL_INTERVAL_METRICS);
   setInterval(fetchPM2, POLL_INTERVAL_PM2);
   setInterval(fetchOllama, POLL_INTERVAL_OLLAMA);
+  
+  // Audiophile Polling loops
+  setInterval(pollRoon, 4000);
+  setInterval(pollMeshStatus, 8000);
 }
+
+// ── AUDIOPHILE & MESH SYNC frontend bindings ─────────────────────────────────
+
+let allHudSubProfiles = [];
+
+async function pollRoon() {
+  try {
+    const res = await fetch('/api/roon/status');
+    const data = await res.json();
+    
+    const statusBadge = document.getElementById('roon-status');
+    if (data.connected) {
+      statusBadge.innerText = 'Online';
+      statusBadge.className = 'badge active';
+    } else {
+      statusBadge.innerText = 'Offline';
+      statusBadge.className = 'badge';
+    }
+    
+    if (data.now_playing) {
+      const np = data.now_playing;
+      document.getElementById('roon-title').textContent = np.title || '—';
+      document.getElementById('roon-artist').textContent = np.artist || '—';
+      document.getElementById('roon-album').textContent = np.album || '';
+      
+      const stateBadge = document.getElementById('roon-state');
+      const s = np.state || 'stopped';
+      stateBadge.textContent = s.charAt(0).toUpperCase() + s.slice(1);
+      stateBadge.className = 'state-badge ' + s;
+      
+      const img = document.getElementById('roon-art');
+      const placeholder = document.getElementById('roon-art-placeholder');
+      if (np.image_key) {
+        img.src = '/api/roon/image/' + np.image_key;
+        img.style.display = 'block';
+        placeholder.style.display = 'none';
+      } else {
+        img.style.display = 'none';
+        placeholder.style.display = 'flex';
+      }
+    }
+    
+    if (data.volume != null) {
+      document.getElementById('roon-volume-val').innerText = data.volume + '%';
+      document.getElementById('roon-volume-slider').value = data.volume;
+    }
+    
+    if (data.active_sub_profile !== undefined) {
+      const select = document.getElementById('hud-sub-select');
+      if (select.value !== data.active_sub_profile) {
+        select.value = data.active_sub_profile || "";
+        updateHudSubProfileDetails(data.active_sub_profile);
+      }
+    }
+  } catch (err) {
+    console.error('Failed to poll Roon:', err);
+    document.getElementById('roon-status').innerText = 'Offline';
+    document.getElementById('roon-status').className = 'badge';
+  }
+}
+
+async function loadHudSubProfiles() {
+  try {
+    const res = await fetch('/api/roon/sub_profiles');
+    const data = await res.json();
+    allHudSubProfiles = data.profiles || [];
+    
+    const select = document.getElementById('hud-sub-select');
+    select.innerHTML = '<option value="">None Selected</option>';
+    
+    allHudSubProfiles.forEach(p => {
+      const opt = document.createElement('option');
+      opt.value = p.name;
+      opt.textContent = p.friendly_name || p.name;
+      select.appendChild(opt);
+    });
+    
+    if (data.active) {
+      select.value = data.active;
+      updateHudSubProfileDetails(data.active);
+    }
+  } catch (err) {
+    console.error('Failed to load subwoofer profiles:', err);
+  }
+}
+
+function updateHudSubProfileDetails(name) {
+  const detailsDiv = document.getElementById('hud-sub-details');
+  if (!name) {
+    detailsDiv.style.display = 'none';
+    return;
+  }
+  
+  const p = allHudSubProfiles.find(x => x.name === name);
+  if (!p) {
+    detailsDiv.style.display = 'none';
+    return;
+  }
+  
+  document.getElementById('hud-sub-crossover').textContent = p.crossover_freq != null ? p.crossover_freq + ' Hz' : '—';
+  document.getElementById('hud-sub-boost').textContent = p.deep_bass_boost_level != null ? p.deep_bass_boost_level + ' dB' : '—';
+  document.getElementById('hud-sub-gain').textContent = p.room_gain_level != null ? p.room_gain_level + ' dB' : '—';
+  
+  detailsDiv.style.display = 'block';
+  
+  setTimeout(drawHudEQCurve, 50);
+}
+
+async function selectHudSubProfile(name) {
+  updateHudSubProfileDetails(name);
+  try {
+    const res = await fetch('/api/roon/select_sub_profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile: name })
+    });
+    const d = await res.json();
+    if (d.eq_synced) {
+      logConsole("System", `Successfully synced Subwoofer profile '${name}' and activated MUSE EQ Presets!`);
+    } else if (name) {
+      logConsole("System", `Warning: Selected profile '${name}' but MUSE EQ Sync failed: ${d.eq_error || 'No matching preset found'}`);
+    }
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+function previewRoonVol(v) {
+  document.getElementById('roon-volume-val').innerText = v + '%';
+}
+
+async function setRoonVol(level) {
+  previewRoonVol(level);
+  try {
+    await fetch('/api/roon/volume', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ level: +level })
+    });
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+async function pbRoon(action) {
+  try {
+    await fetch('/api/roon/playback', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action })
+    });
+    setTimeout(pollRoon, 700);
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+function drawHudEQCurve() {
+  const canvas = document.getElementById('hud-eq-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width;
+  const h = canvas.height;
+  
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = '#06070c';
+  ctx.fillRect(0, 0, w, h);
+  
+  const freqs = [20, 30, 40, 50, 60, 70, 80, 90, 100, 120, 150, 200];
+  const logMin = Math.log10(20);
+  const logMax = Math.log10(200);
+  
+  function getX(f) {
+    return ((Math.log10(f) - logMin) / (logMax - logMin)) * w;
+  }
+  
+  function getY(db) {
+    return h - ((db - -7) / 8) * h;
+  }
+  
+  // Draw Grid Lines
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+  ctx.lineWidth = 1;
+  freqs.forEach(f => {
+    const x = getX(f);
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, h);
+    ctx.stroke();
+  });
+  
+  const dbs = [0, -3, -6];
+  dbs.forEach(db => {
+    const y = getY(db);
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(w, y);
+    ctx.stroke();
+  });
+  
+  // EQ Peaking filter equation calculations (B1: 62Hz -3.5dB Q4, B2: 95Hz -4dB Q5)
+  function getResponse(f) {
+    const h1 = -3.5 / (1 + Math.pow(4.0 * (f / 62 - 62 / f), 2));
+    const h2 = -4.0 / (1 + Math.pow(5.0 * (f / 95 - 95 / f), 2));
+    return h1 + h2;
+  }
+  
+  ctx.strokeStyle = 'var(--accent-blue)';
+  ctx.lineWidth = 2;
+  ctx.shadowColor = 'var(--accent-blue)';
+  ctx.shadowBlur = 4;
+  
+  ctx.beginPath();
+  let first = true;
+  for (let x = 0; x < w; x++) {
+    const pct = x / w;
+    const f = Math.pow(10, logMin + pct * (logMax - logMin));
+    const y = getY(getResponse(f));
+    if (first) {
+      ctx.moveTo(x, y);
+      first = false;
+    } else {
+      ctx.lineTo(x, y);
+    }
+  }
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+}
+
+async function pollMeshStatus() {
+  try {
+    const res = await fetch('/api/system/status');
+    const data = await res.json();
+    
+    const container = document.getElementById('mesh-nodes-list');
+    if (!container) return;
+    
+    let html = '';
+    Object.keys(data).forEach(key => {
+      const node = data[key];
+      const onlineClass = node.online ? 'online' : 'offline';
+      const statusText = node.online ? 'Online' : 'Offline';
+      
+      let details = [];
+      if (node.ssh) details.push('SSH');
+      if (node.roon) details.push(key === 'mac' ? 'Panel API' : 'Roon Core');
+      const detailsStr = details.length > 0 ? ` [${details.join(', ')}]` : '';
+
+      html += `
+        <div class="mesh-node-item">
+          <div class="mesh-node-info">
+            <span class="mesh-node-name">${node.name}</span>
+            <span class="mesh-node-ip">${node.ip}${detailsStr}</span>
+          </div>
+          <span class="mesh-node-status ${onlineClass}">
+            <span class="status-dot"></span>
+            ${statusText}
+          </span>
+        </div>
+      `;
+    });
+    
+    container.innerHTML = html;
+  } catch (err) {
+    console.error('Failed to poll mesh status:', err);
+  }
+}
+
+async function triggerAutomation(type) {
+  const btnSyncCal = document.getElementById('btn-sync-cal');
+  const btnSyncProj = document.getElementById('btn-sync-proj');
+  const logElem = document.getElementById('console-log');
+  
+  btnSyncCal.disabled = true;
+  btnSyncProj.disabled = true;
+  
+  const scriptName = type === 'sync_calibration' ? 'sync_calibration.sh' : 'sync_projects.sh';
+  logConsole("Executor", `Launching script: ${scriptName} ...`);
+  
+  try {
+    const res = await fetch(`/api/system/${type}`, { method: 'POST' });
+    const data = await res.json();
+    
+    logConsole("stdout", data.output);
+    if (data.success) {
+      logConsole("Executor", `Script ${scriptName} completed successfully!`);
+    } else {
+      logConsole("Executor", `Script ${scriptName} failed with error.`);
+    }
+  } catch (err) {
+    logConsole("Executor", `Communication error: ${err.message}`);
+  } finally {
+    btnSyncCal.disabled = false;
+    btnSyncProj.disabled = false;
+    pollMeshStatus();
+  }
+}
+
+function logConsole(sender, message) {
+  const logElem = document.getElementById('console-log');
+  const timestamp = new Date().toLocaleTimeString();
+  
+  // Format message to strip escape sequences (like \033 colors)
+  const cleanMsg = message.replace(/\033\[[0-9;]*m/g, '');
+  
+  const logLine = `[${timestamp}] [${sender}] ${cleanMsg}\n`;
+  if (logElem.innerText === "Ready for action. Click a sync button above." || logElem.innerText.startsWith("Ready")) {
+    logElem.innerText = logLine;
+  } else {
+    logElem.innerText += logLine;
+  }
+  
+  // Scroll to bottom
+  const container = logElem.parentElement;
+  container.scrollTop = container.scrollHeight;
+}
+
+function clearConsoleLog() {
+  document.getElementById('console-log').innerText = "Ready for action. Click a sync button above.";
+}
+
+// Bind to window to allow HTML button handlers to call them
+window.previewRoonVol = previewRoonVol;
+window.setRoonVol = setRoonVol;
+window.pbRoon = pbRoon;
+window.selectHudSubProfile = selectHudSubProfile;
+window.triggerAutomation = triggerAutomation;
+window.clearConsoleLog = clearConsoleLog;
 
 window.controlPM2 = controlPM2;
 
 // Launch application
 initialize();
+

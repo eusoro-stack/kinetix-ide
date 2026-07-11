@@ -260,7 +260,175 @@ app.post('/api/ollama/pull', async (req, res) => {
     const result = await response.json();
     res.json({ success: true, result });
   } catch (err) {
-    res.status(500).json({ error: `Pull failed: ${err.message}` });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── AUDIOPHILE & MESH SYNC INTEGRATION ────────────────────────────────────────
+
+const net = require('net');
+
+/**
+ * Utility to asynchronously check port status
+ */
+function checkPort(ip, port, timeout = 600) {
+  return new Promise((resolve) => {
+    const socket = new net.Socket();
+    let status = false;
+    socket.setTimeout(timeout);
+    
+    socket.on('connect', () => {
+      status = true;
+      socket.destroy();
+    });
+    socket.on('timeout', () => socket.destroy());
+    socket.on('error', () => socket.destroy());
+    socket.on('close', () => resolve(status));
+    
+    socket.connect(port, ip);
+  });
+}
+
+/**
+ * GET /api/system/status
+ * Queries Tailscale peer status and connection availability
+ */
+app.get('/api/system/status', async (req, res) => {
+  const macSsh = await checkPort('127.0.0.1', 22);
+  const macRoon = await checkPort('127.0.0.1', 8765);
+  
+  const sbSsh = await checkPort('100.92.141.51', 22);
+  const sbRoon = await checkPort('100.92.141.51', 9330);
+  
+  const awSsh = await checkPort('100.113.127.103', 22);
+  
+  res.json({
+    mac: {
+      name: "MacBook Pro (Host)",
+      ip: "100.117.180.68",
+      ssh: macSsh,
+      roon: macRoon,
+      online: true
+    },
+    surface: {
+      name: "Surface Book",
+      ip: "100.92.141.51",
+      ssh: sbSsh,
+      roon: sbRoon,
+      online: sbSsh || sbRoon
+    },
+    alienware: {
+      name: "Alienware Laptop",
+      ip: "100.113.127.103",
+      ssh: awSsh,
+      online: awSsh
+    }
+  });
+});
+
+/**
+ * POST /api/system/sync_calibration
+ * Executes the subwoofer calibration profile sync script
+ */
+app.post('/api/system/sync_calibration', async (req, res) => {
+  console.log('[System Control] Executing sync_calibration.sh');
+  const result = await runCommand('/Users/eusoro/Documents/Claude/Projects/Audiophile/sync_calibration.sh');
+  res.json({
+    success: result.success,
+    output: (result.stdout || '') + (result.stderr || '') + (result.error ? `\nError: ${result.error}` : '')
+  });
+});
+
+/**
+ * POST /api/system/sync_projects
+ * Executes the bidirectional git project sync script
+ */
+app.post('/api/system/sync_projects', async (req, res) => {
+  console.log('[System Control] Executing sync_projects.sh');
+  const result = await runCommand('/Users/eusoro/Projects/sync_projects.sh');
+  res.json({
+    success: result.success,
+    output: (result.stdout || '') + (result.stderr || '') + (result.error ? `\nError: ${result.error}` : '')
+  });
+});
+
+// ── Roon Proxy Routes ─────────────────────────────────────────────────────────
+const ROON_SERVER = 'http://localhost:8765';
+
+app.get('/api/roon/status', async (req, res) => {
+  try {
+    const response = await fetch(`${ROON_SERVER}/api/status`);
+    const data = await response.json();
+    res.json(data);
+  } catch (err) {
+    res.json({ connected: false, error: "Roon Python server offline" });
+  }
+});
+
+app.get('/api/roon/sub_profiles', async (req, res) => {
+  try {
+    const response = await fetch(`${ROON_SERVER}/api/sub_profiles`);
+    const data = await response.json();
+    res.json(data);
+  } catch (err) {
+    res.json({ profiles: [], error: "Roon Python server offline" });
+  }
+});
+
+app.post('/api/roon/select_sub_profile', async (req, res) => {
+  try {
+    const response = await fetch(`${ROON_SERVER}/api/select_sub_profile`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    const data = await response.json();
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/roon/volume', async (req, res) => {
+  try {
+    const response = await fetch(`${ROON_SERVER}/api/volume`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    const data = await response.json();
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/roon/playback', async (req, res) => {
+  try {
+    const response = await fetch(`${ROON_SERVER}/api/playback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body)
+    });
+    const data = await response.json();
+    res.json(data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/roon/image/:key', async (req, res) => {
+  try {
+    const response = await fetch(`${ROON_SERVER}/api/image/${req.params.key}`);
+    if (response.ok) {
+      res.setHeader('Content-Type', response.headers.get('Content-Type') || 'image/jpeg');
+      const arrayBuffer = await response.arrayBuffer();
+      res.send(Buffer.from(arrayBuffer));
+    } else {
+      res.status(response.status).send();
+    }
+  } catch (err) {
+    res.status(500).send();
   }
 });
 

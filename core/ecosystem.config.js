@@ -43,8 +43,9 @@ module.exports = {
     },
     {
       name: 'kinetix-rag-sync',
-      script: 'python',
-      args: ['scripts/rag_agent_worker.py', '--watch'],
+      script: 'scripts/rag_agent_worker.py',
+      interpreter: pythonInterpreter,
+      args: ['--watch'],
       cwd: path.join(__dirname, '..'),
       instances: 1,
       autorestart: true,

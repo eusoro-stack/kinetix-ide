@@ -230,6 +230,118 @@
 
       </section>
 
+      <!-- Third Column: Acoustic & Network Control Sidebar -->
+      <section class="grid-col sidebar-col">
+        
+        <!-- Roon Player -->
+        <div class="card glass-card">
+          <div class="card-header">
+            <h3>🎵 Roon Controller</h3>
+            <span class="badge" id="roon-status">Offline</span>
+          </div>
+          
+          <div class="roon-now-playing">
+            <div class="roon-art-container">
+              <img id="roon-art" class="roon-art" src="" alt="Album Art" style="display: none;">
+              <div id="roon-art-placeholder" class="roon-art-placeholder">🎵</div>
+            </div>
+            <div class="roon-meta-info">
+              <div class="roon-title" id="roon-title">—</div>
+              <div class="roon-artist" id="roon-artist">—</div>
+              <div class="roon-album" id="roon-album"></div>
+              <span class="state-badge paused" id="roon-state">Stopped</span>
+            </div>
+          </div>
+          
+          <div class="roon-volume-control">
+            <div class="volume-header">
+              <span class="label">Volume (OPPO UDP-205)</span>
+              <span class="val" id="roon-volume-val">—%</span>
+            </div>
+            <div class="slider-container">
+              <input type="range" id="roon-volume-slider" min="0" max="100" value="50" oninput="previewRoonVol(this.value)" onchange="setRoonVol(this.value)">
+            </div>
+          </div>
+          
+          <div class="roon-playback-controls">
+            <button class="control-btn" onclick="pbRoon('previous')">⏮</button>
+            <button class="control-btn play-btn" onclick="pbRoon('playpause')">⏯ Play / Pause</button>
+            <button class="control-btn" onclick="pbRoon('next')">⏭</button>
+            <button class="control-btn" onclick="pbRoon('stop')">⏹</button>
+          </div>
+        </div>
+
+        <!-- Subwoofer Calibration -->
+        <div class="card glass-card">
+          <div class="card-header">
+            <h3>🔊 Subwoofer Calibration</h3>
+          </div>
+          
+          <div class="form-group">
+            <label for="hud-sub-select">Target Preset Profile</label>
+            <select id="hud-sub-select" onchange="selectHudSubProfile(this.value)">
+              <option value="">None Selected</option>
+            </select>
+          </div>
+          
+          <div id="hud-sub-details" style="display: none;">
+            <div class="details-grid-compact">
+              <div class="detail-item-compact">
+                <span class="lbl">Crossover</span>
+                <span class="val" id="hud-sub-crossover">—</span>
+              </div>
+              <div class="detail-item-compact">
+                <span class="lbl">Deep Bass</span>
+                <span class="val" id="hud-sub-boost">—</span>
+              </div>
+              <div class="detail-item-compact">
+                <span class="lbl">Room Gain</span>
+                <span class="val" id="hud-sub-gain">—</span>
+              </div>
+            </div>
+            
+            <div class="hud-eq-visualizer">
+              <span class="lbl">MUSE EQ Attenuation Curve</span>
+              <canvas id="hud-eq-canvas" width="300" height="90"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <!-- Hybrid Mesh Network Status -->
+        <div class="card glass-card">
+          <div class="card-header">
+            <h3>🕸️ Hybrid Mesh Status</h3>
+            <span class="badge active">Monitoring</span>
+          </div>
+          <div class="mesh-nodes-list" id="mesh-nodes-list">
+            <!-- Dynamically populated mesh status items -->
+          </div>
+        </div>
+
+        <!-- Task Automation Console -->
+        <div class="card glass-card">
+          <div class="card-header">
+            <h3>🖥️ Workstation Automation</h3>
+          </div>
+          <div class="automation-actions">
+            <button class="action-trigger-btn" id="btn-sync-cal" onclick="triggerAutomation('sync_calibration')">
+              🔄 Sync Subwoofer Profiles
+            </button>
+            <button class="action-trigger-btn" id="btn-sync-proj" onclick="triggerAutomation('sync_projects')">
+              🐙 Git Sync Repositories
+            </button>
+          </div>
+          <div class="console-log-header">
+            <span>Terminal Output Log</span>
+            <button class="clear-log-btn" onclick="clearConsoleLog()">Clear</button>
+          </div>
+          <div class="console-log-container">
+            <pre class="console-log" id="console-log">Ready for action. Click a sync button above.</pre>
+          </div>
+        </div>
+
+      </section>
+
     </main>
 
     <!-- Footer Stats / Details -->
