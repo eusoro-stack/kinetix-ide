@@ -485,6 +485,151 @@ app.get('/api/roon/image/:key', async (req, res) => {
   }
 });
 
+// ── Telegram Control Bot (Zero-Dependency) ──────────────────────────────────
+const TELEGRAM_TOKEN = '8826926992:AAEqAPA2U8MDmi5bhkv3RpzAsBeKdd5XbO4';
+const ALLOWED_USER_ID = 7685875023;
+
+async function sendTelegramMessage(chatId, text) {
+  try {
+    await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML' })
+    });
+  } catch (err) {
+    console.error('[Telegram Bot] Failed to send message:', err);
+  }
+}
+
+async function handleTelegramCommand(message) {
+  const chatId = message.chat.id;
+  const userId = message.from.id;
+  const text = message.text ? message.text.trim() : '';
+
+  if (userId !== ALLOWED_USER_ID) {
+    console.warn(`[Telegram Bot] Unauthorized message from user ID: ${userId}`);
+    return;
+  }
+
+  console.log(`[Telegram Bot] Received command: ${text}`);
+
+  if (text.startsWith('/start')) {
+    await sendTelegramMessage(chatId, `🛸 <b>Kinetix Command Center Bot Online</b>\nWelcome, Enefiok. Use /status, /sync, or Roon commands to control your workstation mesh.`);
+    return;
+  }
+
+  if (text.startsWith('/status')) {
+    const macSsh = await checkPort('127.0.0.1', 22);
+    const macRoon = await checkPort('127.0.0.1', 8765);
+    const sbSsh = await checkPort('100.92.141.51', 22);
+    const sbRoon = await checkPort('100.92.141.51', 9330);
+    const awSsh = await checkPort('100.113.127.103', 22);
+
+    const report = [
+      `🛸 <b>Workstation Mesh Status:</b>`,
+      `• <b>MacBook Pro (Host)</b>: ${macSsh ? '🟢 Online' : '🔴 Offline'} (Roon proxy: ${macRoon ? '🟢 Active' : '🔴 Inactive'})`,
+      `• <b>Surface Book</b>: ${sbSsh ? '🟢 Online' : '🔴 Offline'} (Roon Core: ${sbRoon ? '🟢 Active' : '🔴 Inactive'})`,
+      `• <b>Alienware Laptop</b>: ${awSsh ? '🟢 Online' : '🔴 Offline'}`
+    ].join('\n');
+    await sendTelegramMessage(chatId, report);
+    return;
+  }
+
+  if (text.startsWith('/sync')) {
+    await sendTelegramMessage(chatId, `🔄 <b>Starting bidirectional git project sync...</b>`);
+    const result = await runCommand('/Users/eusoro/Projects/sync_projects.sh');
+    const log = (result.stdout || '') + (result.stderr || '') + (result.error ? `\nError: ${result.error}` : '');
+    await sendTelegramMessage(chatId, `✅ <b>Git Sync Complete!</b>\n<pre>${log.substring(0, 3000)}</pre>`);
+    return;
+  }
+
+  if (text.startsWith('/calibrate')) {
+    await sendTelegramMessage(chatId, `🔊 <b>Starting subwoofer ARC3 calibration sync...</b>`);
+    const result = await runCommand('/Users/eusoro/Documents/Claude/Projects/Audiophile/sync_calibration.sh');
+    const log = (result.stdout || '') + (result.stderr || '') + (result.error ? `\nError: ${result.error}` : '');
+    await sendTelegramMessage(chatId, `✅ <b>Calibration Sync Complete!</b>\n<pre>${log.substring(0, 3000)}</pre>`);
+    return;
+  }
+
+  if (text.startsWith('/play') || text.startsWith('/pause') || text.startsWith('/next')) {
+    const action = text.slice(1);
+    try {
+      await fetch(`http://localhost:8765/api/playback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action })
+      });
+      await sendTelegramMessage(chatId, `🎵 Roon playback action: <b>${action}</b>`);
+    } catch (err) {
+      await sendTelegramMessage(chatId, `🔴 Roon action failed: ${err.message}`);
+    }
+    return;
+  }
+
+  if (text.startsWith('/vol ')) {
+    const vol = parseInt(text.slice(5).trim(), 10);
+    if (isNaN(vol) || vol < 0 || vol > 100) {
+      await sendTelegramMessage(chatId, `⚠️ Invalid volume parameter. Specify 0-100.`);
+      return;
+    }
+    try {
+      await fetch(`http://localhost:8765/api/volume`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ volume: vol })
+      });
+      await sendTelegramMessage(chatId, `🔊 Volume adjusted to: <b>${vol}%</b>`);
+    } catch (err) {
+      await sendTelegramMessage(chatId, `🔴 Volume adjustment failed: ${err.message}`);
+    }
+    return;
+  }
+
+  if (text.startsWith('/preset ')) {
+    const profile = text.slice(8).trim();
+    try {
+      await fetch(`http://localhost:8765/api/select_sub_profile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profile })
+      });
+      await sendTelegramMessage(chatId, `🎯 Acoustic profile set to: <b>${profile}</b>`);
+    } catch (err) {
+      await sendTelegramMessage(chatId, `🔴 Preset update failed: ${err.message}`);
+    }
+    return;
+  }
+
+  await sendTelegramMessage(chatId, `❓ <b>Unknown Command</b>\nAvailable commands:\n• /status - Check mesh node statuses\n• /sync - Run git synchronization\n• /calibrate - Sync subwoofer profiles\n• /play, /pause, /next - Roon controls\n• /vol [0-100] - Adjust Roon volume\n• /preset [name] - Select calibration preset`);
+}
+
+async function startTelegramBot() {
+  console.log('[Telegram Bot] Initializing long-polling daemon...');
+  let offset = 0;
+  while (true) {
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/getUpdates?offset=${offset}&timeout=30`);
+      if (res.ok) {
+        const body = await res.json();
+        if (body.ok && body.result && body.result.length > 0) {
+          for (const update of body.result) {
+            offset = update.update_id + 1;
+            if (update.message) {
+              await handleTelegramCommand(update.message);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[Telegram Bot] Long-polling connection error:', err.message);
+      await new Promise(r => setTimeout(r, 5000));
+    }
+  }
+}
+
+// Start bot daemon
+startTelegramBot();
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`==================================================`);
   console.log(`  🛸 Kinetix IDE Console Server running!`);
