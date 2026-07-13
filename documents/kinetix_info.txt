@@ -1,0 +1,5 @@
+Kinetix IDE is a high-performance workstation orchestrator designed by Enefiok Usoro.
+It decouples telemetry monitoring, process execution, and system-level thread schedules.
+Performance Cores (P-Cores) are mapped to cores 0-15 and handle heavy tasks like LLM inference.
+Efficient Cores (E-Cores) are mapped to cores 16-23 and handle background sync and telemetry gathering.
+The network challenger module tests connectivity across local and Tailscale VPN interfaces.

@@ -405,6 +405,507 @@ app.post('/api/system/sync_projects', async (req, res) => {
   });
 });
 
+// Cosine Similarity mathematical vector metrics
+function dotProduct(v1, v2) {
+  return v1.reduce((sum, val, i) => sum + val * v2[i], 0);
+}
+function magnitude(v) {
+  return Math.sqrt(v.reduce((sum, val) => sum + val * val, 0));
+}
+function cosineSimilarity(v1, v2) {
+  const mag1 = magnitude(v1);
+  const mag2 = magnitude(v2);
+  if (mag1 === 0 || mag2 === 0) return 0;
+  return dotProduct(v1, v2) / (mag1 * mag2);
+}
+
+// Local RAG cosine search over indexed documents
+async function performRAGSearch(prompt, cleanHost) {
+  const vectorStorePath = path.join(__dirname, '..', 'scripts', 'vector_store.json');
+  if (!fs.existsSync(vectorStorePath)) return '';
+
+  try {
+    // 1. Get embedding for the prompt query
+    const embedRes = await fetch(`${cleanHost}/api/embeddings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'nomic-embed-text', prompt })
+    });
+    if (!embedRes.ok) {
+      // Fallback check to /api/embed
+      const embedResAlt = await fetch(`${cleanHost}/api/embed`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'nomic-embed-text', input: prompt })
+      });
+      if (!embedResAlt.ok) return '';
+      const embedDataAlt = await embedResAlt.json();
+      if (embedDataAlt.embeddings && embedDataAlt.embeddings.length > 0) {
+        return processStoreWithQueryVector(embedDataAlt.embeddings[0], vectorStorePath);
+      }
+      return '';
+    }
+    const embedData = await embedRes.json();
+    if (!embedData.embedding) return '';
+    return processStoreWithQueryVector(embedData.embedding, vectorStorePath);
+  } catch (err) {
+    console.error('[RAG Search Error]', err);
+    return '';
+  }
+}
+
+function processStoreWithQueryVector(queryVector, storePath) {
+  try {
+    const store = JSON.parse(fs.readFileSync(storePath, 'utf8'));
+    const matches = [];
+
+    for (const filename of Object.keys(store)) {
+      for (const chunk of store[filename].chunks || []) {
+        const sim = cosineSimilarity(queryVector, chunk.embedding);
+        matches.push({ score: sim, text: chunk.text, source: filename });
+      }
+    }
+
+    matches.sort((a, b) => b.score - a.score);
+    const topMatches = matches.filter(m => m.score >= 0.35).slice(0, 3);
+    if (topMatches.length === 0) return '';
+
+    return topMatches.map(m => `- ${m.text} (Source: ${m.source})`).join('\n');
+  } catch (err) {
+    console.error('[Process Store Error]', err);
+    return '';
+  }
+}
+
+/**
+ * POST /api/ollama/chat
+ * Query the local LLM with optional vector RAG context lookup
+ */
+app.post('/api/ollama/chat', async (req, res) => {
+  const { prompt, model, ragEnabled } = req.body;
+  if (!prompt || !model) {
+    return res.status(400).json({ error: "Prompt and model are required." });
+  }
+
+  const config = loadConfig();
+  const defaultHost = config.ollama ? config.ollama.default_host : 'http://127.0.0.1:11434';
+  const host = process.env.OLLAMA_HOST || defaultHost;
+  const cleanHost = host.startsWith('http') ? host : `http://${host}`;
+
+  try {
+    let context = '';
+    if (ragEnabled) {
+      context = await performRAGSearch(prompt, cleanHost);
+    }
+
+    let finalPrompt = prompt;
+    if (context) {
+      finalPrompt = `You are Kinetix Workstation Core AI Assistant. Answer the question contextually using the provided info.\n\nContext:\n${context}\n\nQuestion: ${prompt}\n\nResponse:`;
+    }
+
+    const response = await fetch(`${cleanHost}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, prompt: finalPrompt, stream: false })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Ollama responded with code ${response.status}`);
+    }
+
+    const data = await response.json();
+    res.json({
+      success: true,
+      response: data.response,
+      contextUsed: context ? context.split('\n') : []
+    });
+  } catch (err) {
+    res.status(500).json({ error: `Chat inference failed: ${err.message}` });
+  }
+});
+
+/**
+ * GET /api/system/processes
+ * Resolves list of running processes in the system sorted by Memory (default) or CPU.
+ */
+app.get('/api/system/processes', async (req, res) => {
+  const sortBy = req.query.sortBy === 'cpu' ? 'CPU' : 'WS';
+  const cmd = `powershell -Command "Get-Process | Sort-Object ${sortBy} -Descending | Select-Object -First 20 | Select-Object Id, ProcessName, @{Name='CPU';Expression={if ($_.CPU) { [Math]::Round($_.CPU, 1) } else { 0 }}}, @{Name='RAM';Expression={[Math]::Round($_.WorkingSet / 1MB, 1)}} | ConvertTo-Json"`;
+  
+  const result = await runCommand(cmd);
+  if (!result.success) {
+    return res.status(500).json({ error: "Failed to query system processes.", details: result.stderr });
+  }
+
+  try {
+    let processes = [];
+    if (result.stdout && result.stdout.trim()) {
+      processes = JSON.parse(result.stdout);
+      if (!Array.isArray(processes)) {
+        processes = [processes];
+      }
+    }
+    res.json({
+      success: true,
+      processes: processes.map(p => ({
+        pid: p.Id,
+        name: p.ProcessName,
+        cpu: p.CPU || 0,
+        ram: p.RAM || 0
+      }))
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to parse system processes output.", details: err.message });
+  }
+});
+
+/**
+ * POST /api/system/process/kill
+ * Terminate a system process by PID.
+ */
+app.post('/api/system/process/kill', async (req, res) => {
+  const { pid } = req.body;
+  if (pid === undefined) {
+    return res.status(400).json({ error: "Process PID is required." });
+  }
+
+  const pidNum = parseInt(pid, 10);
+  if (isNaN(pidNum)) {
+    return res.status(400).json({ error: "Invalid PID format." });
+  }
+
+  // Safety: Prevent killing the server's own process
+  if (pidNum === process.pid) {
+    return res.status(400).json({ error: "Access denied. Cannot terminate the Kinetix IDE Console server itself." });
+  }
+
+  console.log(`[System Process] Terminating PID ${pidNum}`);
+  const result = await runCommand(`taskkill /F /PID ${pidNum}`);
+  if (result.success) {
+    res.json({ success: true, message: `Successfully terminated process with PID ${pidNum}` });
+  } else {
+    res.status(500).json({ error: `Failed to terminate process: ${result.error}`, details: result.stderr });
+  }
+});
+
+/**
+ * POST /api/system/audit
+ * Gather telemetry and active process list, feed to local LLM, and return optimized system diagnostics.
+ */
+app.post('/api/system/audit', async (req, res) => {
+  const { model } = req.body;
+  if (!model) {
+    return res.status(400).json({ error: "Model is required for AI audit." });
+  }
+
+  const config = loadConfig();
+  const defaultHost = config.ollama ? config.ollama.default_host : 'http://127.0.0.1:11434';
+  const host = process.env.OLLAMA_HOST || defaultHost;
+  const cleanHost = host.startsWith('http') ? host : `http://${host}`;
+
+  let metrics = {};
+  if (fs.existsSync(TELEMETRY_PATH)) {
+    try {
+      metrics = JSON.parse(fs.readFileSync(TELEMETRY_PATH, 'utf8'));
+    } catch (e) {}
+  }
+
+  // Get active system processes
+  const procResult = await runCommand("powershell -Command \"Get-Process | Sort-Object WS -Descending | Select-Object -First 12 | Select-Object Id, ProcessName, @{Name='CPU';Expression={if ($_.CPU) { [Math]::Round($_.CPU, 1) } else { 0 }}}, @{Name='RAM';Expression={[Math]::Round($_.WorkingSet / 1MB, 1)}} | ConvertTo-Json\"");
+  let processes = [];
+  if (procResult.success) {
+    try {
+      if (procResult.stdout && procResult.stdout.trim()) {
+        processes = JSON.parse(procResult.stdout);
+        if (!Array.isArray(processes)) processes = [processes];
+      }
+    } catch (e) {}
+  }
+
+  // Get PM2 processes
+  let pm2Processes = [];
+  const pm2Result = await runCommand('pm2 jlist');
+  if (pm2Result.success) {
+    try {
+      const list = JSON.parse(pm2Result.stdout);
+      pm2Processes = list.map(p => ({
+        name: p.name,
+        status: p.pm2_env.status,
+        cpu: p.monit ? p.monit.cpu : 0,
+        memory: p.monit ? p.monit.memory : 0
+      }));
+    } catch (e) {}
+  }
+
+  const prompt = `You are a world-class Systems Architect and Performance Engineer. 
+Analyze the following workstation diagnostic snapshot and generate a highly detailed, professional optimization and health report. 
+Highlight critical bottlenecks (e.g. high RAM/VRAM load, core affinity imbalances, runaway processes, PM2 service crashes) and provide actionable CLI commands or system configuration adjustments.
+
+DIAGNOSTIC DATA:
+- Platform: ${metrics.os_platform || 'Windows'}
+- System Grade: ${metrics.system_grade || 'N/A'}
+- Average Load: ${metrics.average_load_percent || 0}%
+- CPU Overall Percent: ${metrics.cpu?.percent || 0}%
+- CPU Logical Cores: ${metrics.cpu?.threads || 0}
+- CPU Topology P-Cores: [${(metrics.cpu?.p_cores || []).join(', ')}]
+- CPU Topology E-Cores: [${(metrics.cpu?.e_cores || []).join(', ')}]
+- Per-Core Load Profile: [${(metrics.cpu?.per_core_percent || []).map(p => p + '%').join(', ')}]
+- RAM: Used ${(metrics.memory?.used_bytes / (1024**3)).toFixed(2)} GB / ${(metrics.memory?.total_bytes / (1024**3)).toFixed(2)} GB (${metrics.memory?.percent || 0}%)
+- Storage: Used ${(metrics.disk?.used_bytes / (1024**3)).toFixed(2)} GB / ${(metrics.disk?.total_bytes / (1024**3)).toFixed(2)} GB (${metrics.disk?.percent || 0}%)
+- Network I/O Speed: Down: ${(metrics.network_io?.rx_bytes_per_sec / 1024).toFixed(1)} KB/s, Up: ${(metrics.network_io?.tx_bytes_per_sec / 1024).toFixed(1)} KB/s
+- Disk I/O Speed: Read: ${(metrics.disk_io?.read_bytes_per_sec / 1024).toFixed(1)} KB/s, Write: ${(metrics.disk_io?.write_bytes_per_sec / 1024).toFixed(1)} KB/s
+- GPU Available: ${metrics.gpu?.available || false}
+${metrics.gpu?.available ? `- GPU Name: ${metrics.gpu.name}\n- GPU Util: ${metrics.gpu.utilization}%\n- GPU Temp: ${metrics.gpu.temperature}°C\n- VRAM: ${(metrics.gpu.vram.used_bytes / (1024**3)).toFixed(2)} GB / ${(metrics.gpu.vram.total_bytes / (1024**3)).toFixed(2)} GB (${metrics.gpu.vram.percent}%)` : ''}
+
+TOP SYSTEM PROCESSES (Sorted by RAM):
+${processes.map((p, i) => `${i+1}. ${p.name || p.ProcessName} (PID: ${p.pid || p.Id}) - RAM: ${p.ram || p.RAM} MB, CPU Time: ${p.cpu || p.CPU}s`).join('\n')}
+
+PM2 ORCHESTRATED SERVICES:
+${pm2Processes.map(p => `- ${p.name}: ${p.status} (CPU: ${p.cpu}%, RAM: ${(p.memory / (1024**2)).toFixed(2)} MB)`).join('\n')}
+
+INSTRUCTIONS:
+1. Provide a professional, high-fidelity analysis.
+2. Group suggestions into categories: "Immediate Critical Actions", "Core Scheduling & CPU Affinity Recommendations", and "Memory & Storage Optimizations".
+3. Write your report in beautiful, clear Markdown.
+4. Keep the tone technical and professional. Keep recommendations concrete.`;
+
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 45000); // 45s timeout
+
+    const response = await fetch(`${cleanHost}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model, prompt, stream: false }),
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      throw new Error(`Ollama responded with status code ${response.status}`);
+    }
+
+    const data = await response.json();
+    res.json({
+      success: true,
+      report: data.report || data.response
+    });
+  } catch (err) {
+    res.status(500).json({ error: `AI system audit failed: ${err.message}` });
+  }
+});
+
+/**
+ * POST /api/image/generate
+ * Generates an image using local Stable Diffusion or online fallback.
+ * Saves the image to public/generated/ and returns its filename and metadata.
+ */
+app.post('/api/image/generate', async (req, res) => {
+  const { prompt, aspect, style, negativePrompt, cfgScale, steps, seed } = req.body;
+  if (!prompt) {
+    return res.status(400).json({ error: "Prompt is required." });
+  }
+
+  // Determine width and height based on aspect ratio selection
+  let width = 512;
+  let height = 512;
+  if (aspect === '16:9') {
+    width = 896;
+    height = 512;
+  } else if (aspect === '9:16') {
+    width = 512;
+    height = 896;
+  }
+
+  // Build the enhanced style prompt
+  let finalPrompt = prompt;
+  if (style) {
+    finalPrompt = `${prompt}, ${style}, ultra-detailed, 8k resolution, premium quality`;
+  }
+
+  const generatedDir = path.join(__dirname, 'public', 'generated');
+  if (!fs.existsSync(generatedDir)) {
+    fs.mkdirSync(generatedDir, { recursive: true });
+  }
+
+  // Determine seed
+  const resolvedSeed = (seed !== undefined && seed !== null && seed !== '' && parseInt(seed, 10) !== -1)
+    ? parseInt(seed, 10)
+    : Math.floor(Math.random() * 100000000);
+
+  const resolvedSteps = steps ? parseInt(steps, 10) : 20;
+  const resolvedCfgScale = cfgScale ? parseFloat(cfgScale) : 7;
+
+  // Check if local Stable Diffusion WebUI is online on 127.0.0.1:7860
+  const sdHost = 'http://127.0.0.1:7860';
+  let generatedBuffer = null;
+  let usedLocal = false;
+  let fileExt = 'jpg';
+
+  try {
+    const controller = new AbortController();
+    const pingTimeout = setTimeout(() => controller.abort(), 1500);
+    const sdPing = await fetch(`${sdHost}/sdapi/v1/options`, { method: 'GET', signal: controller.signal });
+    clearTimeout(pingTimeout);
+    
+    if (sdPing.ok) {
+      console.log(`[Stable Diffusion] Local API detected. Generating image...`);
+      const sdRes = await fetch(`${sdHost}/sdapi/v1/txt2img`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: finalPrompt,
+          negative_prompt: negativePrompt || "low quality, blurry, deformed",
+          width: width,
+          height: height,
+          steps: resolvedSteps,
+          cfg_scale: resolvedCfgScale,
+          seed: resolvedSeed
+        })
+      });
+      if (sdRes.ok) {
+        const sdData = await sdRes.json();
+        if (sdData.images && sdData.images.length > 0) {
+          generatedBuffer = Buffer.from(sdData.images[0], 'base64');
+          usedLocal = true;
+        }
+      }
+    }
+  } catch (err) {
+    console.log(`[Stable Diffusion] Local API offline or timed out: ${err.message}. Using cloud fallback.`);
+  }
+
+  // Fallback: Use Pollinations.ai or similar free AI image generation API
+  if (!generatedBuffer) {
+    try {
+      const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(finalPrompt)}?width=${width}&height=${height}&nologo=true&seed=${resolvedSeed}`;
+      
+      const controller = new AbortController();
+      const fetchTimeout = setTimeout(() => controller.abort(), 20000);
+      const response = await fetch(url, { signal: controller.signal });
+      clearTimeout(fetchTimeout);
+      
+      if (response.ok) {
+        const arrayBuffer = await response.arrayBuffer();
+        generatedBuffer = Buffer.from(arrayBuffer);
+      } else {
+        throw new Error(`Cloud image generator returned status ${response.status}`);
+      }
+    } catch (err) {
+      console.log(`[Image Studio] Cloud image generator failed: ${err.message}. Generating procedural BMP fallback.`);
+    }
+  }
+
+  // Procedural BMP fallback if both local SD and cloud fetch failed
+  if (!generatedBuffer) {
+    try {
+      generatedBuffer = generateBMPBuffer(width, height, resolvedSeed);
+      fileExt = 'bmp';
+    } catch (err) {
+      return res.status(500).json({ error: `Image generation failed: ${err.message}` });
+    }
+  }
+
+  const filename = `gen_${Date.now()}.${fileExt}`;
+  const filePath = path.join(generatedDir, filename);
+
+  // Save the generated image buffer to disk
+  try {
+    fs.writeFileSync(filePath, generatedBuffer);
+    res.json({
+      success: true,
+      url: `/generated/${filename}`,
+      usedLocal,
+      prompt: finalPrompt,
+      aspect,
+      cfgScale: resolvedCfgScale,
+      steps: resolvedSteps,
+      seed: resolvedSeed,
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    res.status(500).json({ error: `Failed to save generated image: ${err.message}` });
+  }
+});
+
+/**
+ * Procedural BMP generator to serve as high-fidelity offline fallback.
+ * Generates beautiful gradient patterns using a seed value.
+ */
+function generateBMPBuffer(width, height, seed) {
+  const rowSize = Math.floor((24 * width + 31) / 32) * 4;
+  const pixelDataSize = rowSize * height;
+  const fileSize = 54 + pixelDataSize;
+
+  const buffer = Buffer.alloc(fileSize);
+
+  // File Header
+  buffer.write('BM', 0); // Signature
+  buffer.writeUInt32LE(fileSize, 2); // File Size
+  buffer.writeUInt16LE(0, 6); // Reserved
+  buffer.writeUInt16LE(0, 8); // Reserved
+  buffer.writeUInt32LE(54, 10); // Pixel Data Offset
+
+  // DIB Header (BITMAPINFOHEADER)
+  buffer.writeUInt32LE(40, 14); // Header Size
+  buffer.writeInt32LE(width, 18); // Width
+  buffer.writeInt32LE(height, 22); // Height
+  buffer.writeUInt16LE(1, 26); // Planes
+  buffer.writeUInt16LE(24, 28); // Bits per Pixel (24-bit RGB)
+  buffer.writeUInt32LE(0, 30); // Compression (0 = BI_RGB)
+  buffer.writeUInt32LE(pixelDataSize, 34); // Image Size
+  buffer.writeInt32LE(2835, 38); // X pixels per meter
+  buffer.writeInt32LE(2835, 42); // Y pixels per meter
+  buffer.writeUInt32LE(0, 46); // Total Colors
+  buffer.writeUInt32LE(0, 50); // Important Colors
+
+  // Generate pixel data based on seed
+  let offset = 54;
+  const seedNum = parseInt(seed, 10) || 0;
+  
+  let state = seedNum;
+  function random() {
+    state = (state * 1103515245 + 12345) & 0x7fffffff;
+    return state / 0x7fffffff;
+  }
+
+  const rCoeff = Math.floor(random() * 255);
+  const gCoeff = Math.floor(random() * 255);
+  const bCoeff = Math.floor(random() * 255);
+
+  for (let y = 0; y < height; y++) {
+    const rowOffset = offset + (height - 1 - y) * rowSize;
+    for (let x = 0; x < width; x++) {
+      const r = Math.round((x / width) * rCoeff + (y / height) * (255 - rCoeff)) % 256;
+      const g = Math.round((y / height) * gCoeff + (x / width) * (255 - gCoeff)) % 256;
+      const b = Math.round(((x + y) / (width + height)) * bCoeff + (1 - (x + y) / (width + height)) * (255 - bCoeff)) % 256;
+
+      const pixelOffset = rowOffset + x * 3;
+      buffer[pixelOffset] = b;     // Blue
+      buffer[pixelOffset + 1] = g; // Green
+      buffer[pixelOffset + 2] = r; // Red
+    }
+  }
+
+  return buffer;
+}
+
+/**
+ * GET /api/rag/documents
+ * Returns list of files indexed in the vector store.
+ */
+app.get('/api/rag/documents', (req, res) => {
+  const vectorStorePath = path.join(__dirname, '..', 'scripts', 'vector_store.json');
+  if (fs.existsSync(vectorStorePath)) {
+    try {
+      const store = JSON.parse(fs.readFileSync(vectorStorePath, 'utf8'));
+      return res.json({ success: true, documents: Object.keys(store) });
+    } catch (e) {
+      return res.status(500).json({ error: `Failed to parse vector store: ${e.message}` });
+    }
+  }
+  res.json({ success: true, documents: [] });
+});
+
 // ── Roon Proxy Routes ─────────────────────────────────────────────────────────
 const ROON_SERVER = 'http://localhost:8765';
 
@@ -486,8 +987,8 @@ app.get('/api/roon/image/:key', async (req, res) => {
 });
 
 // ── Telegram Control Bot (Zero-Dependency) ──────────────────────────────────
-const TELEGRAM_TOKEN = '8826926992:AAEqAPA2U8MDmi5bhkv3RpzAsBeKdd5XbO4';
-const ALLOWED_USER_ID = 7685875023;
+const TELEGRAM_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const ALLOWED_USER_ID = parseInt(process.env.TELEGRAM_ALLOWED_USER_ID, 10);
 
 async function sendTelegramMessage(chatId, text) {
   try {
@@ -604,6 +1105,10 @@ async function handleTelegramCommand(message) {
 }
 
 async function startTelegramBot() {
+  if (!TELEGRAM_TOKEN) {
+    console.warn('[Telegram Bot] TELEGRAM_BOT_TOKEN is not configured. Daemon suspended.');
+    return;
+  }
   console.log('[Telegram Bot] Initializing long-polling daemon...');
   let offset = 0;
   while (true) {

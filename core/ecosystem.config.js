@@ -67,6 +67,20 @@ module.exports = {
       env: {
         NODE_ENV: 'production'
       }
+    },
+    {
+      name: 'kinetix-health-check',
+      script: 'scripts/custom_health_check.py',
+      interpreter: pythonInterpreter,
+      cwd: path.join(__dirname, '..'),
+      instances: 1,
+      autorestart: true,
+      watch: false,
+      max_memory_restart: '80M',
+      env: {
+        PYTHONUNBUFFERED: '1',
+        PYTHONIOENCODING: 'utf-8'
+      }
     }
   ]
 };

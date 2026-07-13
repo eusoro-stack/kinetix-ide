@@ -19,6 +19,11 @@ except ImportError:
 NVML_AVAILABLE = False
 NVML_DEVICE_HANDLE = None
 
+# Global trackers for I/O rates
+LAST_NET_IO = None
+LAST_DISK_IO = None
+LAST_TIME = None
+
 def init_nvml():
     global NVML_AVAILABLE, NVML_DEVICE_HANDLE
     try:
@@ -67,7 +72,7 @@ def apply_core_affinity(p_threads, e_threads):
                     cmdline_str = " ".join(cmdline).lower() if cmdline else ""
                     
                     is_kinetix_task = False
-                    if any(k in cmdline_str for k in ['kinetix', 'telemetry', 'rag_agent', 'serve_cors', 'make_video']):
+                    if any(k in cmdline_str for k in ['kinetix', 'telemetry', 'rag_agent', 'serve_cors', 'make_video', 'jungle-tempest', 'vite']):
                         is_kinetix_task = True
                     
                     if is_kinetix_task:
@@ -93,6 +98,14 @@ def get_system_metrics():
         "disk": {},
         "gpu": {
             "available": False
+        },
+        "network_io": {
+            "rx_bytes_per_sec": 0.0,
+            "tx_bytes_per_sec": 0.0
+        },
+        "disk_io": {
+            "read_bytes_per_sec": 0.0,
+            "write_bytes_per_sec": 0.0
         }
     }
     
@@ -151,6 +164,36 @@ def get_system_metrics():
             "used_bytes": disk.used,
             "percent": disk.percent
         }
+
+        # 3.5. Network & Disk IO speeds
+        global LAST_NET_IO, LAST_DISK_IO, LAST_TIME
+        current_time = time.time()
+
+        # Network IO speed
+        try:
+            net_io = psutil.net_io_counters()
+            if LAST_NET_IO is not None and LAST_TIME is not None:
+                time_delta = current_time - LAST_TIME
+                if time_delta > 0:
+                    metrics["network_io"]["rx_bytes_per_sec"] = max(0.0, (net_io.bytes_recv - LAST_NET_IO.bytes_recv) / time_delta)
+                    metrics["network_io"]["tx_bytes_per_sec"] = max(0.0, (net_io.bytes_sent - LAST_NET_IO.bytes_sent) / time_delta)
+            LAST_NET_IO = net_io
+        except Exception:
+            pass
+
+        # Disk IO speed
+        try:
+            disk_io = psutil.disk_io_counters()
+            if LAST_DISK_IO is not None and LAST_TIME is not None:
+                time_delta = current_time - LAST_TIME
+                if time_delta > 0:
+                    metrics["disk_io"]["read_bytes_per_sec"] = max(0.0, (disk_io.read_bytes - LAST_DISK_IO.read_bytes) / time_delta)
+                    metrics["disk_io"]["write_bytes_per_sec"] = max(0.0, (disk_io.write_bytes - LAST_DISK_IO.write_bytes) / time_delta)
+            LAST_DISK_IO = disk_io
+        except Exception:
+            pass
+
+        LAST_TIME = current_time
     except ImportError:
         # Minimal Fallback
         metrics["cpu"]["percent"] = 10.0

@@ -34,6 +34,14 @@
           <span class="subtitle">CORE GRID MONITOR</span>
         </div>
       </div>
+
+      <!-- Holographic Workspace Tab Bar -->
+      <div class="header-nav-tabs">
+        <button class="nav-tab active" data-tab="dashboard">🖥️ Dashboard</button>
+        <button class="nav-tab" data-tab="chat">💬 AI Chat Studio</button>
+        <button class="nav-tab" data-tab="image">🎨 Image Studio</button>
+        <button class="nav-tab" data-tab="diagnostics">🔍 AI Diagnostics</button>
+      </div>
       
       <!-- Node Switcher Tabs -->
       <div class="node-switcher">
@@ -52,19 +60,50 @@
         </div>
         <div class="meta-item grade-container">
           <span class="label">Evaluation Rank</span>
-          <span class="val grade-badge" id="meta-grade">-</span>
+          <div class="grade-scanner-wrapper">
+            <svg class="scanner-ring" viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="42" stroke="url(#scanner-gradient)" stroke-width="3" fill="none" stroke-dasharray="160 100"/>
+              <defs>
+                <linearGradient id="scanner-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stop-color="var(--accent-blue)"/>
+                  <stop offset="100%" stop-color="var(--accent-purple)"/>
+                </linearGradient>
+              </defs>
+            </svg>
+            <span class="val grade-badge" id="meta-grade">-</span>
+          </div>
         </div>
       </div>
     </header>
 
-    <!-- Main Grid Dashboard Layout -->
-    <main class="grid-layout">
+    <!-- Main Workspace Container -->
+    <main class="app-main">
+      
+      <!-- Tab 1: Dashboard -->
+      <div class="tab-content active" id="tab-dashboard">
+        <div class="grid-layout">
+
+      <!-- Wide Vitals Oscilloscope Chart -->
+      <div class="card glass-card span-2-cols" id="oscilloscope-card">
+        <div class="card-header">
+          <h3>📊 Real-Time Vitals Oscilloscope</h3>
+          <div class="chart-controls">
+            <label class="control-checkbox"><span class="legend-dot cpu"></span><input type="checkbox" id="toggle-cpu" checked> CPU</label>
+            <label class="control-checkbox"><span class="legend-dot ram"></span><input type="checkbox" id="toggle-ram" checked> RAM</label>
+            <label class="control-checkbox"><span class="legend-dot gpu"></span><input type="checkbox" id="toggle-gpu" checked> GPU</label>
+            <span class="badge online" style="margin-left: 1rem;">Live Feed</span>
+          </div>
+        </div>
+        <div class="canvas-container">
+          <canvas id="vitals-chart"></canvas>
+        </div>
+      </div>
       
       <!-- Left Column: Metrics and Telemetry -->
       <section class="grid-col left-col">
         
         <!-- System Load Meter -->
-        <div class="card glass-card span-all-rows">
+        <div class="card glass-card">
           <div class="card-header">
             <h3>📈 Workstation Telemetry</h3>
             <span class="badge" id="collector-status">Daemon Offline</span>
@@ -116,6 +155,24 @@
               </div>
               <div class="gauge-sub">
                 <span id="disk-used">0 GB</span> / <span id="disk-total">0 GB</span>
+              </div>
+            </div>
+
+            <!-- I/O Speed indicators -->
+            <div class="io-speeds-container" style="display: flex; gap: 1rem; border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 1rem; margin-top: 0.5rem;">
+              <div class="io-card" style="flex: 1; display: flex; flex-direction: column; gap: 0.25rem;">
+                <span class="lbl" style="font-size: 0.65rem; text-transform: uppercase; color: var(--text-secondary); font-weight: 600;">🌐 Network I/O Bandwidth</span>
+                <div style="font-size: 0.85rem; font-family: monospace; display: flex; justify-content: space-between; color: var(--accent-blue);">
+                  <span>Down: <strong id="net-rx-speed">0.0 KB/s</strong></span>
+                  <span>Up: <strong id="net-tx-speed">0.0 KB/s</strong></span>
+                </div>
+              </div>
+              <div class="io-card" style="flex: 1; display: flex; flex-direction: column; gap: 0.25rem; border-left: 1px solid rgba(255, 255, 255, 0.05); padding-left: 1rem;">
+                <span class="lbl" style="font-size: 0.65rem; text-transform: uppercase; color: var(--text-secondary); font-weight: 600;">💽 Disk I/O Throughput</span>
+                <div style="font-size: 0.85rem; font-family: monospace; display: flex; justify-content: space-between; color: var(--accent-purple);">
+                  <span>Read: <strong id="disk-read-speed">0.0 KB/s</strong></span>
+                  <span>Write: <strong id="disk-write-speed">0.0 KB/s</strong></span>
+                </div>
               </div>
             </div>
 
@@ -234,7 +291,135 @@
           </div>
         </div>
 
+        <!-- Local AI Assistant -->
+        <div class="card glass-card" id="chat-assistant-card">
+          <div class="card-header">
+            <h3>💬 Local AI Assistant</h3>
+            <span class="badge llm-badge" id="chat-status">Ready</span>
+          </div>
+
+          <div class="chat-config" style="display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center;">
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 0.25rem;">
+              <label class="lbl" style="font-size: 0.65rem; text-transform: uppercase; color: var(--text-secondary); font-weight: 600;">Select Model</label>
+              <select id="chat-model-select" style="background: rgba(7, 9, 19, 0.8); border: 1px solid var(--border-glass); border-radius: 6px; padding: 0.4rem; color: #ffffff; font-family: var(--font-sans); font-size: 0.85rem; outline: none; width: 100%;">
+                <option value="">No models available</option>
+              </select>
+            </div>
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-top: 1rem;">
+              <input type="checkbox" id="chat-rag-toggle" checked style="cursor: pointer;">
+              <label for="chat-rag-toggle" style="font-size: 0.8rem; color: var(--text-primary); cursor: pointer; user-select: none;">RAG Mode</label>
+            </div>
+          </div>
+
+          <div class="chat-history-container" id="chat-history" style="height: 250px; overflow-y: auto; background: rgba(7, 9, 19, 0.4); border: 1px solid rgba(255, 255, 255, 0.03); border-radius: 10px; padding: 1rem; margin-bottom: 1rem; display: flex; flex-direction: column; gap: 0.75rem;">
+            <div class="chat-message assistant">
+              <div class="message-bubble">
+                Hello! I am your local AI developer assistant. Select a model and toggle RAG mode to search custom document indexes. How can I help you today?
+              </div>
+            </div>
+          </div>
+
+          <form id="chat-input-form" class="pull-form" style="display: flex; gap: 0.5rem;">
+            <input type="text" id="chat-prompt-input" placeholder="Type a prompt to ask your local AI..." required style="flex: 1;">
+            <button type="submit" id="chat-send-btn">Send</button>
+          </form>
+        </div>
+
+        <!-- AI System Diagnostics Hub -->
+        <div class="card glass-card" id="ai-diagnostics-card">
+          <div class="card-header">
+            <h3>🔍 AI Diagnostics & Optimization Hub</h3>
+            <span class="badge active" id="ai-diagnostic-status">System Audit Ready</span>
+          </div>
+
+          <div class="chat-config" style="display: flex; gap: 1rem; margin-bottom: 1rem; align-items: center;">
+            <div style="flex: 1; display: flex; flex-direction: column; gap: 0.25rem;">
+              <label class="lbl" style="font-size: 0.65rem; text-transform: uppercase; color: var(--text-secondary); font-weight: 600;">Select Inference Model</label>
+              <select id="audit-model-select" style="background: rgba(7, 9, 19, 0.8); border: 1px solid var(--border-glass); border-radius: 6px; padding: 0.4rem; color: #ffffff; font-family: var(--font-sans); font-size: 0.85rem; outline: none; width: 100%;">
+                <option value="">No models available</option>
+              </select>
+            </div>
+            <button id="run-audit-btn" style="background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-purple) 100%); border: none; border-radius: 6px; padding: 0.55rem 1rem; color: #ffffff; font-weight: 600; font-size: 0.8rem; cursor: pointer; transition: 0.3s; margin-top: 1rem; box-shadow: 0 0 10px rgba(0, 242, 254, 0.25);">Run System Audit</button>
+          </div>
+
+          <div id="audit-progress" class="hidden" style="margin-bottom: 1rem;">
+            <div class="progress-bar-container" style="height: 4px; background: rgba(255,255,255,0.02); overflow: hidden; border-radius: 99px;">
+              <div class="progress-bar-fill" id="audit-progress-bar" style="width: 0%; height: 100%; transition: width 0.4s ease; background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple)); box-shadow: 0 0 8px var(--accent-blue);"></div>
+            </div>
+            <div id="audit-progress-status" style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 0.25rem; font-family: monospace; text-align: center;">Initializing diagnostic scan...</div>
+          </div>
+
+          <h4 class="section-title" style="display: flex; justify-content: space-between; align-items: center;">
+            Optimization Report
+            <button id="maximize-audit-report" style="background: none; border: none; color: var(--accent-blue); cursor: pointer; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em;" title="Maximize Report View">Fullscreen ↗</button>
+          </h4>
+          <div id="audit-report-terminal" style="font-family: monospace; font-size: 0.72rem; max-height: 250px; overflow-y: auto; background-color: rgba(5, 6, 12, 0.95); border: 1px solid rgba(168, 85, 247, 0.12); padding: 1rem; border-radius: 8px; color: var(--text-primary); line-height: 1.5; white-space: pre-wrap;">No active diagnostics report generated. Select an LLM model and click 'Run System Audit' to scan process threads and memory nodes.</div>
+        </div>
+
+        <!-- Development Live-Reload -->
+        <div class="card glass-card" id="live-reload-card">
+          <div class="card-header">
+            <h3>🔄 Development Live-Reload</h3>
+            <span class="badge offline" id="live-reload-status">Offline</span>
+          </div>
+
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem;">
+            <span class="lbl" style="font-size: 0.72rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 600; letter-spacing: 0.04em;">Auto-Refresh Browser</span>
+            <label class="switch-container" style="position: relative; display: inline-block; width: 42px; height: 20px;">
+              <input type="checkbox" id="live-reload-toggle" checked style="opacity: 0; width: 0; height: 0;">
+              <span class="slider" style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(7, 9, 19, 0.8); border: 1px solid var(--border-glass); border-radius: 99px; transition: .3s;"></span>
+            </label>
+          </div>
+
+          <h4 class="section-title">Watched Folders</h4>
+          <div class="watched-folders" style="margin-bottom: 1.25rem;">
+            <div class="model-item" style="padding: 0.6rem 0.85rem !important; display: flex; justify-content: space-between; align-items: center; background: rgba(7, 9, 19, 0.4); border: 1px solid rgba(255, 255, 255, 0.02); border-radius: 8px;">
+               <span class="m-name" style="font-family: monospace; font-size: 0.75rem; color: var(--accent-blue);">/interface/public/</span>
+               <span class="badge active" style="font-size: 0.55rem; padding: 0.15rem 0.45rem;">Watching</span>
+            </div>
+          </div>
+
+          <h4 class="section-title">Recent Modifications Log</h4>
+          <div class="diag-meta-log" id="live-reload-log" style="font-family: monospace; font-size: 0.72rem; max-height: 120px; min-height: 80px; overflow-y: auto; background-color: rgba(5, 6, 12, 0.95); border: 1px solid rgba(0, 242, 254, 0.12); padding: 0.65rem 0.85rem; border-radius: 8px; color: var(--accent-blue); white-space: pre-wrap; line-height: 1.4;">[System] Initializing live folder watcher sweep...</div>
+        </div>
+
       </section>
+
+      <!-- Wide System Process Explorer Card -->
+      <div class="card glass-card span-2-cols" id="process-explorer-card">
+        <div class="card-header">
+          <h3>🖥️ System Process Explorer</h3>
+          <div class="process-controls" style="display: flex; gap: 1rem; align-items: center;">
+            <input type="text" id="proc-search-input" placeholder="Search by process name..." style="background: rgba(7, 9, 19, 0.8); border: 1px solid var(--border-glass); border-radius: 6px; padding: 0.4rem 0.8rem; color: #ffffff; font-size: 0.8rem; outline: none; width: 200px;">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <span class="lbl" style="font-size: 0.7rem; color: var(--text-secondary); font-weight: 600;">SORT BY</span>
+              <select id="proc-sort-select" style="background: rgba(7, 9, 19, 0.8); border: 1px solid var(--border-glass); border-radius: 6px; padding: 0.4rem; color: #ffffff; font-size: 0.8rem; outline: none; cursor: pointer;">
+                <option value="ram">RAM (Working Set)</option>
+                <option value="cpu">CPU (Cumulative Time)</option>
+              </select>
+            </div>
+            <span class="badge online" id="process-count-badge">0 Active</span>
+          </div>
+        </div>
+        <div class="table-wrapper" style="max-height: 350px; overflow-y: auto;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Process Name</th>
+                <th>PID</th>
+                <th>CPU Time</th>
+                <th>RAM (Memory)</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="system-process-list">
+              <tr>
+                <td colspan="5" class="empty-message">Polling active system processes...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       <!-- Third Column: Acoustic & Network Control Sidebar -->
       <section class="grid-col sidebar-col">
@@ -348,6 +533,279 @@
 
       </section>
 
+        </div> <!-- end grid-layout -->
+      </div> <!-- end tab-dashboard -->
+
+      <!-- Tab 2: AI Chat Studio -->
+      <div class="tab-content" id="tab-chat">
+        <div class="chat-workspace">
+          
+          <!-- Chat Sidebar: Conversation History & Presets -->
+          <aside class="chat-sidebar">
+            <button id="btn-new-chat" class="neon-purple-btn">+ New Session</button>
+            
+            <h4 class="sidebar-title">Recent Conversations</h4>
+            <div class="chat-sessions-list" id="chat-sessions">
+              <!-- Dynamically populated conversations -->
+            </div>
+            
+            <h4 class="sidebar-title">Developer Presets</h4>
+            <div class="persona-presets">
+              <button class="persona-btn active" data-prompt="You are a senior code reviewer. Analyze code for bugs, logic flaws, memory leaks, and efficiency. Suggest clean code alternatives.">💻 Code Architect</button>
+              <button class="persona-btn" data-prompt="You are a system performance tuning specialist. Focus on optimizing memory, CPU usage, core affinity pinning, and network latency.">⚡ Performance Dev</button>
+              <button class="persona-btn" data-prompt="You are a creative frontend UI/UX designer. Suggest modern styling, glassmorphism layouts, CSS variables, gradients, and micro-animations.">🎨 UI/UX Specialist</button>
+              <button class="persona-btn" data-prompt="You are a database engineer. Optimize SQL queries, index layouts, schemas, and RAG vector searches.">📊 Database Expert</button>
+            </div>
+          </aside>
+
+          <!-- Chat Window -->
+          <div class="chat-window-container">
+            <div class="chat-header-bar">
+              <div class="model-selection-group">
+                <span class="lbl">LLM Engine:</span>
+                <select id="chat-engine-select" style="background: rgba(7, 9, 19, 0.8); border: 1px solid var(--border-glass); border-radius: 6px; padding: 0.4rem; color: #ffffff; font-size: 0.85rem; outline: none; width: 200px;">
+                  <option value="">No models available</option>
+                </select>
+              </div>
+              
+              <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <button type="button" id="chat-download-transcript" class="action-btn" style="padding: 0.35rem 0.75rem; font-size: 0.72rem; color: var(--accent-blue); border-color: rgba(0, 242, 254, 0.2); background: rgba(0, 242, 254, 0.04);" title="Export Chat History as Markdown">💾 Export Chat</button>
+                <label class="control-checkbox" style="margin: 0; display: flex; align-items: center; gap: 0.25rem;">
+                  <input type="checkbox" id="chat-rag-enabled" checked> RAG Search
+                </label>
+                <span id="chat-session-title" style="color: var(--accent-blue); font-weight: 600; font-size: 0.9rem;">Chat Session 1</span>
+              </div>
+            </div>
+
+            <!-- Split Panel Workspace -->
+            <div class="chat-split-container">
+              <!-- Messages viewport -->
+              <div class="chat-messages-viewport" id="chat-messages-area">
+                <!-- Filled dynamically by JavaScript -->
+              </div>
+              
+              <!-- Claude-Style Interactive Artifacts Panel -->
+              <div class="chat-artifacts-panel hidden" id="chat-artifacts-sidebar">
+                <div class="artifacts-header">
+                  <div class="artifacts-title">
+                    <span class="artifact-icon">⚡</span>
+                    <span class="artifact-name" id="artifact-active-name">React Code Widget</span>
+                  </div>
+                  <div class="artifacts-tabs">
+                    <button class="artifact-tab active" id="artifact-btn-preview" onclick="switchArtifactTab('preview')">Preview</button>
+                    <button class="artifact-tab" id="artifact-btn-code" onclick="switchArtifactTab('code')">Code</button>
+                  </div>
+                  <button type="button" class="artifacts-close" onclick="closeArtifactPanel()">&times;</button>
+                </div>
+                <div class="artifacts-body">
+                  <div class="artifact-content-pane active" id="artifact-pane-preview">
+                    <!-- Sandboxed iframe for live rendering -->
+                    <iframe id="artifact-preview-frame" sandbox="allow-scripts"></iframe>
+                  </div>
+                  <div class="artifact-content-pane" id="artifact-pane-code">
+                    <button type="button" class="artifact-copy-btn" id="btn-artifact-copy" onclick="copyArtifactCode()">Copy Code</button>
+                    <pre><code id="artifact-code-box"></code></pre>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Suggested Prompt Template Chips -->
+            <div class="prompt-chips-container" id="chat-suggested-chips">
+              <span class="chip-item" data-prompt="Design a responsive glassmorphic navbar with Tailwind CSS and CSS variables.">🎨 Responsive Navbar</span>
+              <span class="chip-item" data-prompt="Find memory leaks or performance issues in this Node.js server loop.">⚡ Debug Memory Leaks</span>
+              <span class="chip-item" data-prompt="Write an optimized PostgreSQL schema for a RAG vector storage table.">📊 Postgres SQL Vector</span>
+              <span class="chip-item" data-prompt="Analyze this CPU core scheduling log for affinity thread imbalance.">🧬 Core Affinities</span>
+            </div>
+
+            <!-- Chat Inputs -->
+            <form id="chat-studio-form" class="chat-input-area">
+              <input type="text" id="chat-studio-input" placeholder="Ask local model a question, or request design ideas..." required>
+              <button type="submit" id="chat-studio-send-btn">Send ⚡</button>
+            </form>
+          </div>
+          
+        </div>
+      </div>
+
+      <!-- Tab 3: AI Image Studio -->
+      <div class="tab-content" id="tab-image">
+        <div class="image-studio-workspace">
+          
+          <!-- Image Control Panel -->
+          <div class="image-settings-panel">
+            <h3 style="font-family: var(--font-display); color: var(--accent-blue); margin-bottom: 1rem; border-bottom: 1px solid rgba(0, 242, 254, 0.1); padding-bottom: 0.5rem;">🎨 Image Design Studio</h3>
+            
+            <form id="image-generate-form" style="display: flex; flex-direction: column; gap: 1.15rem;">
+              <div class="input-group">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                  <label class="lbl" style="margin: 0;">Creative Prompt</label>
+                  <button type="button" id="btn-enhance-prompt" class="enhance-prompt-btn" title="Enhance simple prompts using local AI model">✨ Optimize Prompt</button>
+                </div>
+                <textarea id="image-prompt" placeholder="Describe the image you want to generate in detail (e.g. 'A futuristic glassmorphic developer workspace dashboard with floating holographic monitors, cyber neon lights, 8k resolution')..." required style="height: 100px; resize: none; background: rgba(7, 9, 19, 0.6); border: 1px solid var(--border-glass); border-radius: 8px; padding: 0.75rem; color: #fff; font-family: var(--font-sans); font-size: 0.85rem; outline: none; width: 100%;"></textarea>
+              </div>
+
+              <!-- Style Suggestion Tags -->
+              <div class="style-tags-container">
+                <span class="lbl" style="font-size: 0.65rem; color: var(--text-secondary); display: block; margin-bottom: 0.35rem;">STYLE QUICK PRESETS</span>
+                <div class="tags-grid">
+                  <span class="style-tag" data-style="holographic cyberpunk HUD interface, glowing vector lines, neon cyan and violet wireframe">Cyber HUD</span>
+                  <span class="style-tag" data-style="glassmorphism layout design, smooth ambient light gradient background, translucent panels, premium UI mockup">Glassmorphic UI</span>
+                  <span class="style-tag" data-style="isometric 3D render, low poly art style, bright octane lighting, game asset concept">3D Isometric</span>
+                  <span class="style-tag" data-style="cinematic concept art, hyper-realistic, volumetric fog, dramatic sci-fi lighting, epic scenery">Cinematic</span>
+                  <span class="style-tag" data-style="retro-futuristic synthwave art style, glowing sun, purple grid, wireframe mountains, 80s aesthetic">Synthwave</span>
+                </div>
+              </div>
+
+              <div class="input-group">
+                <label class="lbl">Negative Prompt (Things to exclude)</label>
+                <input type="text" id="image-neg-prompt" placeholder="blurry, low quality, deformed, extra limbs, text, watermark" style="background: rgba(7, 9, 19, 0.6); border: 1px solid var(--border-glass); border-radius: 8px; padding: 0.6rem; color: #fff; font-family: var(--font-sans); font-size: 0.85rem; outline: none; width: 100%;">
+              </div>
+
+              <!-- Visual Aspect Ratio Cards -->
+              <div class="aspect-ratio-selector-container">
+                <span class="lbl" style="margin-bottom: 0.5rem; display: block;">Aspect Ratio</span>
+                <div class="aspect-ratio-cards">
+                  <div class="aspect-ratio-card active" data-aspect="1:1" title="Square layout (512x512)">
+                    <div class="aspect-box ratio-1-1"></div>
+                    <span class="ratio-text">Square 1:1</span>
+                  </div>
+                  <div class="aspect-ratio-card" data-aspect="16:9" title="Landscape layout (896x512)">
+                    <div class="aspect-box ratio-16-9"></div>
+                    <span class="ratio-text">Landscape 16:9</span>
+                  </div>
+                  <div class="aspect-ratio-card" data-aspect="9:16" title="Portrait layout (512x896)">
+                    <div class="aspect-box ratio-9-16"></div>
+                    <span class="ratio-text">Portrait 9:16</span>
+                  </div>
+                </div>
+                <input type="hidden" id="image-aspect" value="1:1">
+              </div>
+
+              <div style="display: flex; gap: 1rem; align-items: flex-end;">
+                <div style="flex: 1; display: flex; flex-direction: column; gap: 0.25rem;">
+                  <label class="lbl">Render Style Preset</label>
+                  <select id="image-style-select" style="background: rgba(7, 9, 19, 0.6); border: 1px solid var(--border-glass); border-radius: 8px; padding: 0.6rem; color: #fff; outline: none; font-size: 0.85rem; width: 100%; cursor: pointer;">
+                    <option value="">None (Raw Prompt)</option>
+                    <option value="photorealistic portrait, highly detailed skin texture, dslr camera">Photorealistic</option>
+                    <option value="concept digital painting, highly detailed, fantasy illustration, trending on artstation">Artistic Painting</option>
+                    <option value="japanese anime style, key visual, beautiful detailed background, cell shaded">Anime / Manga</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Advanced Parameters Tuning -->
+              <div class="advanced-tuning-container">
+                <h4 class="tuning-title">🔧 Advanced Parameters</h4>
+                
+                <div class="tuning-slider-group">
+                  <div class="slider-header">
+                    <span class="slider-lbl">CFG Scale</span>
+                    <span class="slider-val" id="cfg-value-display">7.0</span>
+                  </div>
+                  <input type="range" id="image-cfg-scale" min="1" max="20" step="0.5" value="7">
+                </div>
+
+                <div class="tuning-slider-group">
+                  <div class="slider-header">
+                    <span class="slider-lbl">Denoising Steps</span>
+                    <span class="slider-val" id="steps-value-display">20</span>
+                  </div>
+                  <input type="range" id="image-steps" min="10" max="100" step="5" value="20">
+                </div>
+
+                <div class="tuning-input-group">
+                  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+                    <span class="slider-lbl">Seed</span>
+                    <label style="font-size: 0.7rem; color: var(--text-secondary); cursor: pointer; display: flex; align-items: center; gap: 0.25rem; user-select: none;">
+                      <input type="checkbox" id="seed-random-toggle" checked> Random
+                    </label>
+                  </div>
+                  <input type="number" id="image-seed" placeholder="Random Seed" value="-1" disabled style="background: rgba(7, 9, 19, 0.4); border: 1px solid var(--border-glass); border-radius: 6px; padding: 0.45rem 0.65rem; color: var(--text-muted); font-size: 0.8rem; font-family: monospace; outline: none; width: 100%;">
+                </div>
+              </div>
+
+              <button type="submit" id="btn-generate-image" style="background: linear-gradient(135deg, var(--accent-pink) 0%, var(--accent-purple) 100%); border: none; border-radius: 8px; padding: 0.8rem; color: #ffffff; font-weight: 700; font-size: 0.9rem; cursor: pointer; transition: 0.3s; margin-top: 0.5rem; box-shadow: 0 0 15px rgba(255, 0, 122, 0.25);">GENERATE DESIGN</button>
+            </form>
+          </div>
+
+          <!-- Image Display Workspace -->
+          <div class="image-viewer-panel">
+            
+            <!-- Generate Display Screen -->
+            <div class="image-canvas-container" id="image-viewer-screen">
+              <!-- Holographic loader placeholder -->
+              <div class="canvas-placeholder" id="image-canvas-placeholder">
+                <div class="hologram-pulse">🎨</div>
+                <p style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 1rem;">Enter a prompt and click generate to render AI assets. Local Stable Diffusion is auto-detected.</p>
+              </div>
+              
+              <!-- Loader state -->
+              <div class="canvas-loader hidden" id="image-canvas-loader">
+                <div class="laser-scanner"></div>
+                <div class="loading-spinner"></div>
+                <p id="image-loader-status" style="font-family: monospace; font-size: 0.8rem; color: var(--accent-pink); margin-top: 1.5rem;">Connecting to generation node...</p>
+              </div>
+
+              <!-- Main image view -->
+              <img id="main-studio-image" class="hidden" src="" alt="AI generated layout asset">
+            </div>
+
+            <!-- Image actions -->
+            <div class="image-actions-bar hidden" id="image-viewer-actions">
+              <span id="image-meta-info" style="font-size: 0.72rem; color: var(--text-secondary); font-family: monospace;">Local SD Generation</span>
+              <div style="display: flex; gap: 0.5rem;">
+                <button class="action-btn" id="btn-download-gen" style="color: var(--accent-blue)">Save Image</button>
+                <button class="action-btn" id="btn-zoom-gen" style="color: var(--accent-purple)">Zoom View</button>
+              </div>
+            </div>
+
+            <!-- Image Generation History Gallery -->
+            <h4 class="section-title" style="margin-top: 1.5rem; margin-bottom: 0.75rem;">Design Asset Gallery</h4>
+            <div class="image-gallery-grid" id="image-gallery">
+              <!-- Populated dynamically by JS -->
+            </div>
+            
+          </div>
+          
+        </div>
+      </div>
+
+      <!-- Tab 4: Diagnostics -->
+      <div class="tab-content" id="tab-diagnostics">
+        <div class="grid-layout">
+          <div class="card glass-card span-2-cols" id="fullscreen-diagnostics-card" style="margin-top:0;">
+            <div class="card-header">
+              <h3>🔍 AI System Diagnostics & Optimization Hub</h3>
+              <span class="badge active" id="ai-diagnostic-status-tab">System Audit Ready</span>
+            </div>
+  
+            <div class="chat-config" style="display: flex; gap: 1rem; margin-bottom: 1.5rem; align-items: center;">
+              <div style="flex: 1; display: flex; flex-direction: column; gap: 0.25rem;">
+                <label class="lbl" style="font-size: 0.65rem; text-transform: uppercase; color: var(--text-secondary); font-weight: 600;">Select Inference Model</label>
+                <select id="audit-model-select-tab" style="background: rgba(7, 9, 19, 0.8); border: 1px solid var(--border-glass); border-radius: 6px; padding: 0.4rem; color: #ffffff; font-family: var(--font-sans); font-size: 0.85rem; outline: none; width: 100%;">
+                  <option value="">No models available</option>
+                </select>
+              </div>
+              <button id="run-audit-btn-tab" style="background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-purple) 100%); border: none; border-radius: 6px; padding: 0.55rem 1.25rem; color: #ffffff; font-weight: 600; font-size: 0.85rem; cursor: pointer; transition: 0.3s; margin-top: 1rem; box-shadow: 0 0 10px rgba(0, 242, 254, 0.25);">Run System Audit</button>
+            </div>
+  
+            <div id="audit-progress-tab" class="hidden" style="margin-bottom: 1.5rem;">
+              <div class="progress-bar-container" style="height: 4px; background: rgba(255,255,255,0.02); overflow: hidden; border-radius: 99px;">
+                <div class="progress-bar-fill" id="audit-progress-bar-tab" style="width: 0%; height: 100%; transition: width 0.4s ease; background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple)); box-shadow: 0 0 8px var(--accent-blue);"></div>
+              </div>
+              <div id="audit-progress-status-tab" style="font-size: 0.7rem; color: var(--text-secondary); margin-top: 0.25rem; font-family: monospace; text-align: center;">Initializing diagnostic scan...</div>
+            </div>
+  
+            <h4 class="section-title" style="display: flex; justify-content: space-between; align-items: center;">
+              Optimization Report
+              <button id="maximize-audit-report-tab" style="background: none; border: none; color: var(--accent-blue); cursor: pointer; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em;" title="Maximize Report View">Fullscreen ↗</button>
+            </h4>
+            <div id="audit-report-terminal-tab" style="font-family: monospace; font-size: 0.75rem; min-height: 420px; background-color: rgba(5, 6, 12, 0.95); border: 1px solid rgba(168, 85, 247, 0.12); padding: 1.5rem; border-radius: 8px; color: var(--text-primary); line-height: 1.6; white-space: pre-wrap; overflow-y: auto;">No active diagnostics report generated. Select an LLM model and click 'Run System Audit' to scan process threads and memory nodes.</div>
+          </div>
+        </div>
+      </div>
+
     </main>
 
     <!-- Footer Stats / Details -->
@@ -361,6 +819,109 @@
       </div>
     </footer>
 
+  </div>
+
+  <!-- Floating Log Terminal Overlay -->
+  <div class="terminal-overlay hidden" id="log-viewer">
+    <div class="terminal-window">
+      <div class="terminal-header">
+        <div class="terminal-title">
+          <span class="terminal-dot red"></span>
+          <span class="terminal-dot yellow"></span>
+          <span class="terminal-dot green"></span>
+          <span class="terminal-name" id="log-process-title">Process Logs Stream</span>
+        </div>
+        <div class="terminal-tabs">
+          <button class="terminal-tab active" id="btn-tab-out" onclick="switchLogTab('out')">STDOUT</button>
+          <button class="terminal-tab" id="btn-tab-err" onclick="switchLogTab('err')">STDERR</button>
+        </div>
+        <button class="terminal-close" onclick="closeLogViewer()">&times;</button>
+      </div>
+      <div class="terminal-body">
+        <pre class="terminal-content" id="log-content">Initializing logs stream...</pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- Floating Diagnostic Report Overlay -->
+  <div class="terminal-overlay hidden" id="audit-report-viewer">
+    <div class="terminal-window" style="width: 80% !important; max-width: 900px !important;">
+      <div class="terminal-header">
+        <div class="terminal-title">
+          <span class="terminal-dot red"></span>
+          <span class="terminal-dot yellow"></span>
+          <span class="terminal-dot green"></span>
+          <span class="terminal-name">🤖 AI Workstation Diagnostics Report</span>
+        </div>
+        <button class="terminal-close" onclick="closeAuditReportViewer()">&times;</button>
+      </div>
+      <div class="terminal-body" style="background: #05060c;">
+        <div class="terminal-content" id="audit-report-fullscreen-content" style="font-family: var(--font-sans); color: var(--text-primary); line-height: 1.6; max-height: 70vh; overflow-y: auto; padding: 1.5rem; text-align: left; white-space: normal;">
+          Loading diagnostic report details...
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Floating Image Lightbox Inspector Overlay -->
+  <div class="terminal-overlay hidden" id="image-lightbox-modal">
+    <div class="terminal-window lightbox-window" style="width: 85% !important; max-width: 950px !important;">
+      <div class="terminal-header">
+        <div class="terminal-title">
+          <span class="terminal-dot red" onclick="closeImageLightbox()"></span>
+          <span class="terminal-dot yellow"></span>
+          <span class="terminal-dot green"></span>
+          <span class="terminal-name">🎨 Image Inspector &amp; Parameters Metadata</span>
+        </div>
+        <button type="button" class="terminal-close" onclick="closeImageLightbox()">&times;</button>
+      </div>
+      <div class="terminal-body lightbox-body" style="background: #05060c; display: flex; gap: 1.5rem; padding: 1.5rem;">
+        <div class="lightbox-left" style="flex: 1.2; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.03); border-radius: 8px; overflow: hidden; max-height: 520px;">
+          <img id="lightbox-main-img" src="" alt="AI generated inspection" style="max-width: 100%; max-height: 100%; object-fit: contain;">
+        </div>
+        <div class="lightbox-right" style="flex: 1; display: flex; flex-direction: column; gap: 1.25rem;">
+          <h3 class="lightbox-heading" style="font-family: var(--font-display); color: var(--accent-pink); font-size: 1.3rem; margin: 0; font-weight: 800; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 0.5rem;">Generated Design Asset</h3>
+          <p class="lightbox-date" id="lightbox-meta-date" style="font-size: 0.72rem; color: var(--text-secondary); margin: 0;">Date: N/A</p>
+          
+          <div class="lightbox-meta-section">
+            <h4 class="meta-section-title" style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em; margin-bottom: 0.35rem;">Prompt Details</h4>
+            <div class="meta-prompt-box" id="lightbox-meta-prompt" style="font-size: 0.8rem; background: rgba(7, 9, 19, 0.6); border: 1px solid var(--border-glass); padding: 0.75rem; border-radius: 6px; color: var(--text-primary); line-height: 1.4; max-height: 120px; overflow-y: auto;">No prompt data.</div>
+            <button type="button" class="action-btn" style="margin-top: 0.5rem; padding: 0.35rem 0.75rem; font-size: 0.72rem; color: var(--accent-blue);" onclick="copyLightboxPrompt()">📋 Copy Prompt</button>
+          </div>
+
+          <div class="lightbox-meta-section">
+            <h4 class="meta-section-title" style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em; margin-bottom: 0.35rem;">Diffusion Parameters</h4>
+            <div class="meta-parameters-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem;">
+              <div class="meta-grid-item" style="background: rgba(7, 9, 19, 0.4); border: 1px solid rgba(255,255,255,0.02); padding: 0.5rem 0.75rem; border-radius: 6px; display: flex; flex-direction: column;">
+                <span class="label" style="font-size: 0.6rem; color: var(--text-secondary); text-transform: uppercase;">Aspect Ratio</span>
+                <span class="val" id="lightbox-meta-aspect" style="font-size: 0.85rem; font-weight: 600; color: #fff;">-</span>
+              </div>
+              <div class="meta-grid-item" style="background: rgba(7, 9, 19, 0.4); border: 1px solid rgba(255,255,255,0.02); padding: 0.5rem 0.75rem; border-radius: 6px; display: flex; flex-direction: column;">
+                <span class="label" style="font-size: 0.6rem; color: var(--text-secondary); text-transform: uppercase;">CFG Scale</span>
+                <span class="val" id="lightbox-meta-cfg" style="font-size: 0.85rem; font-weight: 600; color: #fff;">-</span>
+              </div>
+              <div class="meta-grid-item" style="background: rgba(7, 9, 19, 0.4); border: 1px solid rgba(255,255,255,0.02); padding: 0.5rem 0.75rem; border-radius: 6px; display: flex; flex-direction: column;">
+                <span class="label" style="font-size: 0.6rem; color: var(--text-secondary); text-transform: uppercase;">Steps</span>
+                <span class="val" id="lightbox-meta-steps" style="font-size: 0.85rem; font-weight: 600; color: #fff;">-</span>
+              </div>
+              <div class="meta-grid-item" style="background: rgba(7, 9, 19, 0.4); border: 1px solid rgba(255,255,255,0.02); padding: 0.5rem 0.75rem; border-radius: 6px; display: flex; flex-direction: column;">
+                <span class="label" style="font-size: 0.6rem; color: var(--text-secondary); text-transform: uppercase;">Seed</span>
+                <span class="val" id="lightbox-meta-seed" style="font-size: 0.85rem; font-weight: 600; color: var(--accent-blue); font-family: monospace;">-</span>
+              </div>
+              <div class="meta-grid-item" style="background: rgba(7, 9, 19, 0.4); border: 1px solid rgba(255,255,255,0.02); padding: 0.5rem 0.75rem; border-radius: 6px; display: flex; flex-direction: column; grid-column: span 2;">
+                <span class="label" style="font-size: 0.6rem; color: var(--text-secondary); text-transform: uppercase;">Generator Source</span>
+                <span class="val" id="lightbox-meta-source" style="font-size: 0.85rem; font-weight: 600; color: var(--accent-purple);">-</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="lightbox-meta-section" style="margin-top: auto; border-top: 1px solid rgba(255, 255, 255, 0.05); padding-top: 1rem; display: flex; gap: 0.75rem;">
+            <button type="button" class="neon-purple-btn" style="flex: 1;" onclick="downloadLightboxImage()">💾 Save Image</button>
+            <button type="button" class="action-btn btn-kill" style="flex: 0.4; border-radius: 8px; border: 1px solid rgba(239, 68, 68, 0.2); background: rgba(239, 68, 68, 0.1); color: var(--accent-red);" onclick="deleteLightboxImage()">🗑️ Delete</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="app.js"></script>
