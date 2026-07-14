@@ -477,24 +477,46 @@ function processStoreWithQueryVector(queryVector, storePath) {
   }
 }
 
+// ── API Key Resolver Helper ─────────────────────────────────────────────────
+function resolveAPIKey(keyName) {
+  if (process.env[keyName]) {
+    return process.env[keyName];
+  }
+
+  const candidatePaths = [
+    path.join(__dirname, '..', '..', 'Discord-Bot', '.env'),
+    path.join(__dirname, '..', '..', '.env'), // Projects/.env
+    path.join(__dirname, '..', '..', 'Telegram-Bot', '.env'),
+    path.join(__dirname, '..', '..', 'revoice', '.env'),
+    path.join(__dirname, '..', '.env') // kinetix-ide/.env
+  ];
+
+  for (const envPath of candidatePaths) {
+    if (fs.existsSync(envPath)) {
+      try {
+        const content = fs.readFileSync(envPath, 'utf8');
+        const lines = content.split('\n');
+        const match = lines.find(l => l.trim().startsWith(`${keyName}=`));
+        if (match) {
+          const val = match.split('=')[1].replace(/['"]/g, '').trim();
+          if (val) return val;
+        }
+      } catch (e) {
+        console.error(`Error reading fallback env file ${envPath}:`, e.message);
+      }
+    }
+  }
+  return null;
+}
+
 // ── Cloud LLM Generator helper ──────────────────────────────────────────────
 async function generateCloudLLM(model, prompt, systemPrompt = '') {
   const modelLower = model.toLowerCase();
 
   if (modelLower.startsWith('claude')) {
-    let apiKey = process.env.ANTHROPIC_API_KEY;
+    const apiKey = resolveAPIKey('ANTHROPIC_API_KEY');
     if (!apiKey) {
-      const fallbackEnvPath = path.join(__dirname, '..', '..', 'Telegram-Bot', '.env');
-      if (fs.existsSync(fallbackEnvPath)) {
-        const lines = fs.readFileSync(fallbackEnvPath, 'utf8').split('\n');
-        const match = lines.find(l => l.trim().startsWith('ANTHROPIC_API_KEY='));
-        if (match) {
-          apiKey = match.split('=')[1].replace(/['"]/g, '').trim();
-        }
-      }
-    }
-    if (!apiKey) {
-      throw new Error('ANTHROPIC_API_KEY is not defined in environment variables or Telegram-Bot/.env.');
+      throw new Error('ANTHROPIC_API_KEY is not defined in environment variables or any project .env files.');
     }
     
     const targetModel = modelLower.includes('latest') ? 'claude-3-5-sonnet-latest' : model;
@@ -529,19 +551,9 @@ async function generateCloudLLM(model, prompt, systemPrompt = '') {
   }
 
   if (modelLower.startsWith('gemini')) {
-    let apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = resolveAPIKey('GEMINI_API_KEY');
     if (!apiKey) {
-      const fallbackEnvPath = path.join(__dirname, '..', '..', 'Telegram-Bot', '.env');
-      if (fs.existsSync(fallbackEnvPath)) {
-        const lines = fs.readFileSync(fallbackEnvPath, 'utf8').split('\n');
-        const match = lines.find(l => l.trim().startsWith('GEMINI_API_KEY='));
-        if (match) {
-          apiKey = match.split('=')[1].replace(/['"]/g, '').trim();
-        }
-      }
-    }
-    if (!apiKey) {
-      throw new Error('GEMINI_API_KEY is not defined in environment variables or Telegram-Bot/.env.');
+      throw new Error('GEMINI_API_KEY is not defined in environment variables or any project .env files.');
     }
 
     const targetModel = model;
