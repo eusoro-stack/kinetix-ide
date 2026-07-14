@@ -37,12 +37,39 @@ function formatUptime(seconds) {
 // Fetch System Telemetry Metrics
 async function fetchMetrics() {
   try {
-    const res = await fetch('/api/metrics');
+    const url = activeNode === 'alienware' ? '/api/metrics/alienware' : '/api/metrics';
+    const res = await fetch(url);
     if (!res.ok) throw new Error('API request failed');
     const data = await res.json();
     
     // Update top header meta
-    document.getElementById('meta-host').innerText = data.os_platform === 'win32' ? 'Kinetix Workstation' : 'Kinetix Core Node';
+    document.getElementById('meta-host').innerText = activeNode === 'alienware' ? 'Alienware Workstation' : (data.os_platform === 'win32' ? 'Kinetix Workstation' : 'Kinetix Core Node');
+
+    if (data.error || !data.cpu) {
+      const netIndicator = document.getElementById('meta-network');
+      netIndicator.innerText = 'Offline';
+      netIndicator.className = 'val status-indicator offline';
+      document.getElementById('meta-grade').innerText = '-';
+      
+      const colStatus = document.getElementById('collector-status');
+      colStatus.innerText = 'Offline';
+      colStatus.className = 'badge warning';
+      
+      document.getElementById('cpu-percent').innerText = '--%';
+      document.getElementById('cpu-bar').style.width = '0%';
+      document.getElementById('ram-percent').innerText = '--%';
+      document.getElementById('ram-bar').style.width = '0%';
+      
+      const gpuInactiveMsg = document.getElementById('gpu-inactive-msg');
+      const gpuDetails = document.getElementById('gpu-details');
+      gpuDetails.classList.add('hidden');
+      gpuInactiveMsg.classList.remove('hidden');
+      
+      const gpuStatus = document.getElementById('gpu-status');
+      gpuStatus.innerText = 'Offline';
+      gpuStatus.className = 'badge';
+      return;
+    }
     
     const netIndicator = document.getElementById('meta-network');
     netIndicator.innerText = 'Connected';
@@ -229,8 +256,17 @@ async function fetchMetrics() {
       document.getElementById('gpu-name').innerText = data.gpu.name;
       document.getElementById('gpu-util').innerText = `${data.gpu.utilization}%`;
       document.getElementById('gpu-vram-percent').innerText = `${data.gpu.vram.percent}%`;
-      document.getElementById('gpu-temp').innerText = `${data.gpu.temperature}°C`;
+      document.getElementById('gpu-temp').innerText = data.gpu.temperature > 0 ? `${data.gpu.temperature}°C` : 'N/A';
       document.getElementById('gpu-vram-bytes').innerText = `${formatBytes(data.gpu.vram.used_bytes)} / ${formatBytes(data.gpu.vram.total_bytes)}`;
+
+      const gpuHeader = document.querySelector('#gpu-card .card-header h3');
+      if (gpuHeader) {
+        if (data.gpu.name.toLowerCase().includes('apple')) {
+          gpuHeader.innerHTML = '🎮 Apple Unified GPU Link';
+        } else {
+          gpuHeader.innerHTML = '🎮 NVIDIA GPU Core Link';
+        }
+      }
     } else {
       gpuDetails.classList.add('hidden');
       gpuInactiveMsg.classList.remove('hidden');
@@ -265,12 +301,20 @@ async function fetchMetrics() {
 // Fetch PM2 Processes
 async function fetchPM2() {
   try {
-    const res = await fetch('/api/pm2');
+    const url = activeNode === 'alienware' ? '/api/pm2/alienware' : '/api/pm2';
+    const res = await fetch(url);
     if (!res.ok) throw new Error('PM2 request failed');
     const data = await res.json();
 
     const statusBadge = document.getElementById('pm2-status');
     const pm2List = document.getElementById('pm2-list');
+
+    if (data.error) {
+      statusBadge.innerText = 'Offline';
+      statusBadge.className = 'badge warning';
+      pm2List.innerHTML = '<tr><td colspan="5" class="empty-message">Could not retrieve process list from remote node.</td></tr>';
+      return;
+    }
 
     if (data.pm2_active) {
       statusBadge.innerText = 'Active';
@@ -335,7 +379,8 @@ async function fetchPM2() {
 // PM2 Action Trigger
 async function controlPM2(action, id) {
   try {
-    const res = await fetch('/api/pm2/control', {
+    const url = activeNode === 'alienware' ? '/api/pm2/control/alienware' : '/api/pm2/control';
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action, id })
@@ -2151,6 +2196,8 @@ async function switchNode(nodeId) {
   document.getElementById('tab-alienware').classList.toggle('active', nodeId === 'alienware');
   logConsole("System", `Switched active node telemetry context to: ${nodeId === 'mac' ? 'MacBook Pro' : 'Alienware RTX'}`);
   pollMeshStatus();
+  fetchMetrics();
+  fetchPM2();
 }
 
 async function pollRoon() {
@@ -2484,7 +2531,71 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnNewChat) {
     btnNewChat.addEventListener('click', createNewChatSession);
   }
+  setupOpsHub();
 });
+
+// ── Advanced Operations Hub UI Bindings ─────────────────────────────────────
+function setupOpsHub() {
+  const opsLog = document.getElementById('ops-log');
+  
+  function appendOpsLog(text, type = 'info') {
+    if (!opsLog) return;
+    const time = new Date().toLocaleTimeString();
+    let prefix = `\n[${time}] `;
+    if (type === 'error') prefix += `[Error] `;
+    opsLog.innerText += `${prefix}${text}`;
+    opsLog.scrollTop = opsLog.scrollHeight;
+  }
+
+  async function triggerOp(endpoint, buttonId, successMsg) {
+    const btn = document.getElementById(buttonId);
+    if (btn) btn.disabled = true;
+    appendOpsLog(`Triggering action...`);
+    
+    try {
+      const res = await fetch(endpoint, { method: endpoint.includes('vault') ? 'GET' : 'POST' });
+      const data = await res.json();
+      
+      if (res.ok && data.success !== false) {
+        appendOpsLog(`${successMsg}\nOutput:\n${data.output}`);
+      } else {
+        appendOpsLog(data.output || 'Execution failed.', 'error');
+      }
+    } catch (err) {
+      appendOpsLog(err.message, 'error');
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  const btnStress = document.getElementById('btn-stress-test');
+  if (btnStress) {
+    btnStress.addEventListener('click', () => {
+      triggerOp('/api/ops/stress', 'btn-stress-test', '✓ Stress Test completed.');
+    });
+  }
+
+  const btnBQ = document.getElementById('btn-setup-bq');
+  if (btnBQ) {
+    btnBQ.addEventListener('click', () => {
+      triggerOp('/api/ops/setup-bq', 'btn-setup-bq', '✓ BigQuery configuration completed.');
+    });
+  }
+
+  const btnMesh = document.getElementById('btn-test-mesh');
+  if (btnMesh) {
+    btnMesh.addEventListener('click', () => {
+      triggerOp('/api/ops/test-mesh', 'btn-test-mesh', '✓ Mesh Diagnostics sweep completed.');
+    });
+  }
+
+  const btnVault = document.getElementById('btn-vault-code');
+  if (btnVault) {
+    btnVault.addEventListener('click', () => {
+      triggerOp('/api/ops/vault', 'btn-vault-code', '✓ Security vault access credentials retrieved.');
+    });
+  }
+}
 
 function escapeHtml(text) {
   const div = document.createElement('div');

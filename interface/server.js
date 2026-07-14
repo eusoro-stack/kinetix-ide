@@ -611,15 +611,39 @@ app.post('/api/system/audit', async (req, res) => {
   }
 
   // Get active system processes
-  const procResult = await runCommand("powershell -Command \"Get-Process | Sort-Object WS -Descending | Select-Object -First 12 | Select-Object Id, ProcessName, @{Name='CPU';Expression={if ($_.CPU) { [Math]::Round($_.CPU, 1) } else { 0 }}}, @{Name='RAM';Expression={[Math]::Round($_.WorkingSet / 1MB, 1)}} | ConvertTo-Json\"");
   let processes = [];
-  if (procResult.success) {
-    try {
-      if (procResult.stdout && procResult.stdout.trim()) {
-        processes = JSON.parse(procResult.stdout);
-        if (!Array.isArray(processes)) processes = [processes];
-      }
-    } catch (e) {}
+  if (process.platform === 'darwin') {
+    const procResult = await runCommand("ps -A -o pid=,comm=,%cpu=,rss= -m | head -n 12");
+    if (procResult.success) {
+      try {
+        const lines = procResult.stdout.trim().split('\n');
+        processes = lines.map(line => {
+          const parts = line.trim().split(/\s+/);
+          if (parts.length < 4) return null;
+          const pid = parseInt(parts[0], 10);
+          const rss = parseInt(parts[parts.length - 1], 10) || 0;
+          const cpu = parseFloat(parts[parts.length - 2]) || 0;
+          const commPath = parts.slice(1, parts.length - 2).join(' ');
+          const name = path.basename(commPath);
+          return {
+            Id: pid,
+            ProcessName: name,
+            CPU: cpu,
+            RAM: Math.round(rss / 1024 * 10) / 10 // Convert KB to MB
+          };
+        }).filter(p => p !== null);
+      } catch (e) {}
+    }
+  } else {
+    const procResult = await runCommand("powershell -Command \"Get-Process | Sort-Object WS -Descending | Select-Object -First 12 | Select-Object Id, ProcessName, @{Name='CPU';Expression={if ($_.CPU) { [Math]::Round($_.CPU, 1) } else { 0 }}}, @{Name='RAM';Expression={[Math]::Round($_.WorkingSet / 1MB, 1)}} | ConvertTo-Json\"");
+    if (procResult.success) {
+      try {
+        if (procResult.stdout && procResult.stdout.trim()) {
+          processes = JSON.parse(procResult.stdout);
+          if (!Array.isArray(processes)) processes = [processes];
+        }
+      } catch (e) {}
+    }
   }
 
   // Get PM2 processes
@@ -1136,6 +1160,145 @@ async function startTelegramBot() {
 if (process.platform === 'darwin') {
   startTelegramBot();
 }
+
+// ── Development Live-Reload SSE Endpoint ───────────────────────────────────
+const liveReloadClients = [];
+const publicDir = path.join(__dirname, 'public');
+
+if (fs.existsSync(publicDir)) {
+  let watchTimeout;
+  fs.watch(publicDir, { recursive: true }, (eventType, filename) => {
+    if (filename) {
+      clearTimeout(watchTimeout);
+      watchTimeout = setTimeout(() => {
+        const message = JSON.stringify({
+          type: 'change',
+          file: filename,
+          time: new Date().toLocaleTimeString()
+        });
+        liveReloadClients.forEach(client => {
+          client.write(`data: ${message}\n\n`);
+        });
+      }, 100);
+    }
+  });
+}
+
+app.get('/api/live-reload', (req, res) => {
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive'
+  });
+  
+  liveReloadClients.push(res);
+  
+  req.on('close', () => {
+    const index = liveReloadClients.indexOf(res);
+    if (index !== -1) {
+      liveReloadClients.splice(index, 1);
+    }
+  });
+});
+
+// ── Network Mesh Diagnostics Endpoints ─────────────────────────────────────
+app.get('/api/network/interfaces', (req, res) => {
+  res.json({
+    endpoints: [
+      { type: "Host", address: "127.0.0.1", label: "Local Loopback" },
+      { type: "MacBook Pro", address: "100.117.180.68", label: "Tailscale IP" },
+      { type: "Surface Book", address: "100.92.141.51", label: "Tailscale IP" },
+      { type: "Alienware Laptop", address: "100.113.127.103", label: "Tailscale IP" }
+    ]
+  });
+});
+
+app.post('/api/network/challenge', async (req, res) => {
+  const { target } = req.body;
+  if (!target) {
+    return res.status(400).json({ success: false, error: 'Target address is required.' });
+  }
+
+  const isWin = process.platform === 'win32';
+  const pingCmd = isWin 
+    ? `ping -n 1 -w 1000 ${target}` 
+    : `ping -c 1 -t 1 ${target}`;
+
+  const startTime = Date.now();
+  const pingResult = await runCommand(pingCmd);
+  const latency = Date.now() - startTime;
+
+  if (pingResult.success) {
+    let latencyMs = latency;
+    const match = pingResult.stdout.match(/(?:time|time=)([\d.]+)\s*ms/i);
+    if (match) {
+      latencyMs = parseFloat(match[1]);
+    }
+    res.json({
+      success: true,
+      latency_ms: Math.round(latencyMs),
+      status: 200,
+      statusText: "Reachable"
+    });
+  } else {
+    res.json({
+      success: false,
+      error: "Host Unreachable"
+    });
+  }
+});
+
+// ── Advanced Workstation Operations Routes ──────────────────────────────────
+const winVenvPython = path.join(__dirname, '..', '.venv', 'Scripts', 'python.exe');
+const unixVenvPython = path.join(__dirname, '..', '.venv', 'bin', 'python');
+let pythonInterpreter = 'python3';
+
+if (fs.existsSync(winVenvPython)) {
+  pythonInterpreter = winVenvPython;
+} else if (fs.existsSync(unixVenvPython)) {
+  pythonInterpreter = unixVenvPython;
+}
+
+app.post('/api/ops/stress', async (req, res) => {
+  console.log('[Ops Hub] Triggering CPU stress test...');
+  const result = await runCommand(`"${pythonInterpreter}" "${path.join(__dirname, '..', 'scripts', 'run_stress_test.py')}"`);
+  res.json({
+    success: result.success,
+    output: (result.stdout || '') + (result.stderr || '') + (result.error ? `\nError: ${result.error}` : '')
+  });
+});
+
+app.post('/api/ops/setup-bq', async (req, res) => {
+  console.log('[Ops Hub] Triggering BigQuery provisioning...');
+  const result = await runCommand(`"${pythonInterpreter}" "${path.join(__dirname, '..', 'scripts', 'setup_bigquery.py')}"`);
+  res.json({
+    success: result.success,
+    output: (result.stdout || '') + (result.stderr || '') + (result.error ? `\nError: ${result.error}` : '')
+  });
+});
+
+app.post('/api/ops/test-mesh', async (req, res) => {
+  console.log('[Ops Hub] Triggering network mesh diagnostic test...');
+  const result = await runCommand(`"${pythonInterpreter}" "${path.join(__dirname, '..', 'scripts', 'test_mesh.py')}"`);
+  res.json({
+    success: result.success,
+    output: (result.stdout || '') + (result.stderr || '') + (result.error ? `\nError: ${result.error}` : '')
+  });
+});
+
+app.get('/api/ops/vault', (req, res) => {
+  console.log('[Ops Hub] Retrieving laboratory vault access code...');
+  const vaultPath = path.join(__dirname, '..', 'documents', 'vault_code.txt');
+  if (fs.existsSync(vaultPath)) {
+    try {
+      const code = fs.readFileSync(vaultPath, 'utf8');
+      return res.json({ success: true, output: code });
+    } catch (e) {
+      return res.status(500).json({ success: false, output: `Failed to read vault file: ${e.message}` });
+    }
+  }
+  res.status(404).json({ success: false, output: 'Vault credentials file not found.' });
+});
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`==================================================`);

@@ -314,6 +314,37 @@ def get_system_metrics():
             except Exception as e:
                 metrics["gpu"]["error_smi"] = f"nvidia-smi fallback error: {str(e)}"
             
+    if not gpu_metrics_retrieved and sys.platform == 'darwin':
+        try:
+            res = subprocess.run(
+                ["system_profiler", "SPDisplaysDataType"],
+                capture_output=True, text=True, check=True
+            )
+            name = "Apple Silicon GPU"
+            for line in res.stdout.split('\n'):
+                if "Chipset Model" in line:
+                    name = line.split(":", 1)[1].strip()
+                    break
+            
+            import psutil
+            mem = psutil.virtual_memory()
+            
+            metrics["gpu"] = {
+                "available": True,
+                "name": name,
+                "temperature": 0,
+                "vram": {
+                    "total_bytes": mem.total,
+                    "used_bytes": mem.used,
+                    "free_bytes": mem.available,
+                    "percent": mem.percent
+                },
+                "utilization": 0
+            }
+            gpu_metrics_retrieved = True
+        except Exception as e:
+            metrics["gpu"]["error_darwin"] = f"macOS GPU query error: {str(e)}"
+            
     # Calculate Node Health Grade
     cpu_percent = metrics["cpu"]["percent"]
     mem_percent = metrics["memory"]["percent"]

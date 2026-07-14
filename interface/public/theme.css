@@ -3061,6 +3061,28 @@ body {
   box-shadow: 0 4px 12px rgba(0, 242, 254, 0.2);
 }
 
+/* Operations Hub Button styling */
+.ops-btn {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), filter 0.2s ease, box-shadow 0.2s ease !important;
+}
+
+.ops-btn:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 12px rgba(255, 255, 255, 0.05) !important;
+  filter: brightness(1.25) !important;
+}
+
+.ops-btn:active {
+  transform: translateY(0) !important;
+}
+
+.ops-btn:disabled {
+  opacity: 0.4 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
 
 
 
