@@ -477,6 +477,105 @@ function processStoreWithQueryVector(queryVector, storePath) {
   }
 }
 
+// ── Cloud LLM Generator helper ──────────────────────────────────────────────
+async function generateCloudLLM(model, prompt, systemPrompt = '') {
+  const modelLower = model.toLowerCase();
+
+  if (modelLower.startsWith('claude')) {
+    let apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      const fallbackEnvPath = path.join(__dirname, '..', '..', 'Telegram-Bot', '.env');
+      if (fs.existsSync(fallbackEnvPath)) {
+        const lines = fs.readFileSync(fallbackEnvPath, 'utf8').split('\n');
+        const match = lines.find(l => l.trim().startsWith('ANTHROPIC_API_KEY='));
+        if (match) {
+          apiKey = match.split('=')[1].replace(/['"]/g, '').trim();
+        }
+      }
+    }
+    if (!apiKey) {
+      throw new Error('ANTHROPIC_API_KEY is not defined in environment variables or Telegram-Bot/.env.');
+    }
+    
+    const targetModel = modelLower.includes('latest') ? 'claude-3-5-sonnet-latest' : model;
+    
+    const body = {
+      model: targetModel,
+      max_tokens: 2000,
+      messages: [{ role: 'user', content: prompt }]
+    };
+    
+    if (systemPrompt) {
+      body.system = systemPrompt;
+    }
+
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json'
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Anthropic API responded with status ${response.status}: ${errText}`);
+    }
+
+    const data = await response.json();
+    return data.content[0].text;
+  }
+
+  if (modelLower.startsWith('gemini')) {
+    let apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      const fallbackEnvPath = path.join(__dirname, '..', '..', 'Telegram-Bot', '.env');
+      if (fs.existsSync(fallbackEnvPath)) {
+        const lines = fs.readFileSync(fallbackEnvPath, 'utf8').split('\n');
+        const match = lines.find(l => l.trim().startsWith('GEMINI_API_KEY='));
+        if (match) {
+          apiKey = match.split('=')[1].replace(/['"]/g, '').trim();
+        }
+      }
+    }
+    if (!apiKey) {
+      throw new Error('GEMINI_API_KEY is not defined in environment variables or Telegram-Bot/.env.');
+    }
+
+    const targetModel = model;
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${apiKey}`;
+
+    const body = {
+      contents: [{ parts: [{ text: prompt }] }]
+    };
+
+    if (systemPrompt) {
+      body.systemInstruction = { parts: [{ text: systemPrompt }] };
+    }
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Gemini API responded with status ${response.status}: ${errText}`);
+    }
+
+    const data = await response.json();
+    if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts[0]) {
+      return data.candidates[0].content.parts[0].text;
+    }
+    throw new Error('Invalid response structure from Gemini API');
+  }
+
+  throw new Error(`Unsupported cloud model: ${model}`);
+}
+
 /**
  * POST /api/ollama/chat
  * Query the local LLM with optional vector RAG context lookup
@@ -486,6 +585,9 @@ app.post('/api/ollama/chat', async (req, res) => {
   if (!prompt || !model) {
     return res.status(400).json({ error: "Prompt and model are required." });
   }
+
+  const modelLower = model.toLowerCase();
+  const isCloud = modelLower.startsWith('claude') || modelLower.startsWith('gemini');
 
   const config = loadConfig();
   const defaultHost = config.ollama ? config.ollama.default_host : 'http://127.0.0.1:11434';
@@ -501,6 +603,16 @@ app.post('/api/ollama/chat', async (req, res) => {
     let finalPrompt = prompt;
     if (context) {
       finalPrompt = `You are Kinetix Workstation Core AI Assistant. Answer the question contextually using the provided info.\n\nContext:\n${context}\n\nQuestion: ${prompt}\n\nResponse:`;
+    }
+
+    if (isCloud) {
+      console.log(`[Cloud Routing] Routing chat inference to ${model}...`);
+      const responseText = await generateCloudLLM(model, finalPrompt);
+      return res.json({
+        success: true,
+        response: responseText,
+        contextUsed: context ? context.split('\n') : []
+      });
     }
 
     const response = await fetch(`${cleanHost}/api/generate`, {
@@ -693,7 +805,19 @@ INSTRUCTIONS:
 3. Write your report in beautiful, clear Markdown.
 4. Keep the tone technical and professional. Keep recommendations concrete.`;
 
+  const modelLower = model.toLowerCase();
+  const isCloud = modelLower.startsWith('claude') || modelLower.startsWith('gemini');
+
   try {
+    if (isCloud) {
+      console.log(`[Cloud Routing] Routing system audit to ${model}...`);
+      const reportText = await generateCloudLLM(model, prompt);
+      return res.json({
+        success: true,
+        report: reportText
+      });
+    }
+
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 45000); // 45s timeout
 

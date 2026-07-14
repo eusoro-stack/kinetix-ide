@@ -439,41 +439,103 @@ async function fetchOllama() {
       const chatEngineSelect = document.getElementById('chat-engine-select');
       const auditModelSelectTab = document.getElementById('audit-model-select-tab');
       
-      const populateDropdown = (selectEl) => {
+      const populateDropdown = (selectEl, localModels = []) => {
         if (!selectEl) return;
         const currentSelection = selectEl.value;
         selectEl.innerHTML = '';
-        data.models.forEach(model => {
-          const opt = document.createElement('option');
-          opt.value = model.name;
-          opt.innerText = model.name;
-          selectEl.appendChild(opt);
-        });
+        
+        if (localModels && localModels.length > 0) {
+          const localGroup = document.createElement('optgroup');
+          localGroup.label = "Local Models (Ollama)";
+          localModels.forEach(model => {
+            const opt = document.createElement('option');
+            opt.value = model.name;
+            opt.innerText = model.name;
+            localGroup.appendChild(opt);
+          });
+          selectEl.appendChild(localGroup);
+        }
+
+        const cloudGroup = document.createElement('optgroup');
+        cloudGroup.label = "Cloud Models (API)";
+        
+        const claudeOpt = document.createElement('option');
+        claudeOpt.value = "claude-3-5-sonnet-latest";
+        claudeOpt.innerText = "Claude 3.5 Sonnet";
+        cloudGroup.appendChild(claudeOpt);
+
+        const geminiOpt = document.createElement('option');
+        geminiOpt.value = "gemini-2.5-flash";
+        geminiOpt.innerText = "Gemini 2.5 Flash";
+        cloudGroup.appendChild(geminiOpt);
+
+        const geminiProOpt = document.createElement('option');
+        geminiProOpt.value = "gemini-2.5-pro";
+        geminiProOpt.innerText = "Gemini 2.5 Pro";
+        cloudGroup.appendChild(geminiProOpt);
+
+        selectEl.appendChild(cloudGroup);
+        
         if (currentSelection && [...selectEl.options].some(o => o.value === currentSelection)) {
           selectEl.value = currentSelection;
         } else {
-          // Default to qwen2.5-coder:14b or phi4:latest if present, otherwise first available
-          const preferredModels = ['qwen2.5-coder:14b', 'phi4:latest', 'llama3.1:latest', 'nomic-embed-text:latest'];
-          const foundPref = preferredModels.find(p => [...selectEl.options].some(o => o.value === p));
-          if (foundPref) {
-            selectEl.value = foundPref;
+          if (localModels && localModels.length > 0) {
+            const preferredModels = ['qwen2.5-coder:14b', 'phi4:latest', 'llama3.1:latest', 'nomic-embed-text:latest'];
+            const foundPref = preferredModels.find(p => [...selectEl.options].some(o => o.value === p));
+            selectEl.value = foundPref || localModels[0].name;
+          } else {
+            selectEl.value = "claude-3-5-sonnet-latest";
           }
         }
       };
 
-      populateDropdown(chatModelSelect);
-      populateDropdown(auditModelSelect);
-      populateDropdown(chatEngineSelect);
-      populateDropdown(auditModelSelectTab);
+      populateDropdown(chatModelSelect, data.models);
+      populateDropdown(auditModelSelect, data.models);
+      populateDropdown(chatEngineSelect, data.models);
+      populateDropdown(auditModelSelectTab, data.models);
 
     } else {
       statusBadge.innerText = 'Offline';
       statusBadge.className = 'badge';
       modelsContainer.innerHTML = `<div class="empty-message" style="color:var(--accent-red)">${data.error || 'Gateway offline.'}</div>`;
+      
       const chatModelSelect = document.getElementById('chat-model-select');
       const auditModelSelect = document.getElementById('audit-model-select');
-      if (chatModelSelect) chatModelSelect.innerHTML = '<option value="">No models available</option>';
-      if (auditModelSelect) auditModelSelect.innerHTML = '<option value="">No models available</option>';
+      const chatEngineSelect = document.getElementById('chat-engine-select');
+      const auditModelSelectTab = document.getElementById('audit-model-select-tab');
+      
+      // Re-define populateDropdown inline since the first block didn't run
+      const populateDropdown = (selectEl, localModels = []) => {
+        if (!selectEl) return;
+        const currentSelection = selectEl.value;
+        selectEl.innerHTML = '';
+        
+        const cloudGroup = document.createElement('optgroup');
+        cloudGroup.label = "Cloud Models (API)";
+        
+        const claudeOpt = document.createElement('option');
+        claudeOpt.value = "claude-3-5-sonnet-latest";
+        claudeOpt.innerText = "Claude 3.5 Sonnet";
+        cloudGroup.appendChild(claudeOpt);
+
+        const geminiOpt = document.createElement('option');
+        geminiOpt.value = "gemini-2.5-flash";
+        geminiOpt.innerText = "Gemini 2.5 Flash";
+        cloudGroup.appendChild(geminiOpt);
+
+        const geminiProOpt = document.createElement('option');
+        geminiProOpt.value = "gemini-2.5-pro";
+        geminiProOpt.innerText = "Gemini 2.5 Pro";
+        cloudGroup.appendChild(geminiProOpt);
+
+        selectEl.appendChild(cloudGroup);
+        selectEl.value = "claude-3-5-sonnet-latest";
+      };
+
+      populateDropdown(chatModelSelect, []);
+      populateDropdown(auditModelSelect, []);
+      populateDropdown(chatEngineSelect, []);
+      populateDropdown(auditModelSelectTab, []);
     }
   } catch (err) {
     console.error('Error fetching Ollama config:', err);
