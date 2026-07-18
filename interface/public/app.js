@@ -37,13 +37,13 @@ function formatUptime(seconds) {
 // Fetch System Telemetry Metrics
 async function fetchMetrics() {
   try {
-    const url = activeNode === 'alienware' ? '/api/metrics/alienware' : '/api/metrics';
+    const url = activeNode === 'alienware' ? '/api/metrics/alienware' : (activeNode === 'surface' ? '/api/metrics/surface' : '/api/metrics');
     const res = await fetch(url);
     if (!res.ok) throw new Error('API request failed');
     const data = await res.json();
     
     // Update top header meta
-    document.getElementById('meta-host').innerText = activeNode === 'alienware' ? 'Alienware Workstation' : (data.os_platform === 'win32' ? 'Kinetix Workstation' : 'Kinetix Core Node');
+    document.getElementById('meta-host').innerText = activeNode === 'alienware' ? 'Alienware Workstation' : (activeNode === 'surface' ? 'Surface Book' : (data.os_platform === 'win32' ? 'Kinetix Workstation' : 'Kinetix Core Node'));
 
     if (data.error || !data.cpu) {
       const netIndicator = document.getElementById('meta-network');
@@ -301,7 +301,7 @@ async function fetchMetrics() {
 // Fetch PM2 Processes
 async function fetchPM2() {
   try {
-    const url = activeNode === 'alienware' ? '/api/pm2/alienware' : '/api/pm2';
+    const url = activeNode === 'alienware' ? '/api/pm2/alienware' : (activeNode === 'surface' ? '/api/pm2/surface' : '/api/pm2');
     const res = await fetch(url);
     if (!res.ok) throw new Error('PM2 request failed');
     const data = await res.json();
@@ -379,7 +379,7 @@ async function fetchPM2() {
 // PM2 Action Trigger
 async function controlPM2(action, id) {
   try {
-    const url = activeNode === 'alienware' ? '/api/pm2/control/alienware' : '/api/pm2/control';
+    const url = activeNode === 'alienware' ? '/api/pm2/control/alienware' : (activeNode === 'surface' ? '/api/pm2/control/surface' : '/api/pm2/control');
     const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -459,9 +459,14 @@ async function fetchOllama() {
         const cloudGroup = document.createElement('optgroup');
         cloudGroup.label = "Cloud Models (API)";
         
+        const haikuOpt = document.createElement('option');
+        haikuOpt.value = "claude-haiku-4-5";
+        haikuOpt.innerText = "Claude Haiku 4.5 (low cost)";
+        cloudGroup.appendChild(haikuOpt);
+
         const claudeOpt = document.createElement('option');
         claudeOpt.value = "claude-3-5-sonnet-latest";
-        claudeOpt.innerText = "Claude 3.5 Sonnet";
+        claudeOpt.innerText = "Claude Sonnet (higher cost)";
         cloudGroup.appendChild(claudeOpt);
 
         const geminiOpt = document.createElement('option');
@@ -480,11 +485,11 @@ async function fetchOllama() {
           selectEl.value = currentSelection;
         } else {
           if (localModels && localModels.length > 0) {
-            const preferredModels = ['qwen2.5-coder:14b', 'phi4:latest', 'llama3.1:latest', 'nomic-embed-text:latest'];
+            const preferredModels = ['qwen2.5-coder:7b', 'qwen2.5-coder:14b', 'phi4:latest', 'llama3.1:latest', 'nomic-embed-text:latest'];
             const foundPref = preferredModels.find(p => [...selectEl.options].some(o => o.value === p));
             selectEl.value = foundPref || localModels[0].name;
           } else {
-            selectEl.value = "claude-3-5-sonnet-latest";
+            selectEl.value = "gemini-2.5-flash";
           }
         }
       };
@@ -513,9 +518,14 @@ async function fetchOllama() {
         const cloudGroup = document.createElement('optgroup');
         cloudGroup.label = "Cloud Models (API)";
         
+        const haikuOpt = document.createElement('option');
+        haikuOpt.value = "claude-haiku-4-5";
+        haikuOpt.innerText = "Claude Haiku 4.5 (low cost)";
+        cloudGroup.appendChild(haikuOpt);
+
         const claudeOpt = document.createElement('option');
         claudeOpt.value = "claude-3-5-sonnet-latest";
-        claudeOpt.innerText = "Claude 3.5 Sonnet";
+        claudeOpt.innerText = "Claude Sonnet (higher cost)";
         cloudGroup.appendChild(claudeOpt);
 
         const geminiOpt = document.createElement('option');
@@ -529,7 +539,7 @@ async function fetchOllama() {
         cloudGroup.appendChild(geminiProOpt);
 
         selectEl.appendChild(cloudGroup);
-        selectEl.value = "claude-3-5-sonnet-latest";
+        selectEl.value = "gemini-2.5-flash";
       };
 
       populateDropdown(chatModelSelect, []);
@@ -2256,7 +2266,11 @@ async function switchNode(nodeId) {
   activeNode = nodeId;
   document.getElementById('tab-mac').classList.toggle('active', nodeId === 'mac');
   document.getElementById('tab-alienware').classList.toggle('active', nodeId === 'alienware');
-  logConsole("System", `Switched active node telemetry context to: ${nodeId === 'mac' ? 'MacBook Pro' : 'Alienware RTX'}`);
+  document.getElementById('tab-surface').classList.toggle('active', nodeId === 'surface');
+  let name = 'MacBook Pro';
+  if (nodeId === 'alienware') name = 'Alienware RTX';
+  if (nodeId === 'surface') name = 'Surface Book';
+  logConsole("System", `Switched active node telemetry context to: ${name}`);
   pollMeshStatus();
   fetchMetrics();
   fetchPM2();
