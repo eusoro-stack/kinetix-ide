@@ -459,16 +459,6 @@ async function fetchOllama() {
         const cloudGroup = document.createElement('optgroup');
         cloudGroup.label = "Cloud Models (API)";
         
-        const haikuOpt = document.createElement('option');
-        haikuOpt.value = "claude-haiku-4-5";
-        haikuOpt.innerText = "Claude Haiku 4.5 (low cost)";
-        cloudGroup.appendChild(haikuOpt);
-
-        const claudeOpt = document.createElement('option');
-        claudeOpt.value = "claude-3-5-sonnet-latest";
-        claudeOpt.innerText = "Claude Sonnet (higher cost)";
-        cloudGroup.appendChild(claudeOpt);
-
         const geminiOpt = document.createElement('option');
         geminiOpt.value = "gemini-2.5-flash";
         geminiOpt.innerText = "Gemini 2.5 Flash";
@@ -518,16 +508,6 @@ async function fetchOllama() {
         const cloudGroup = document.createElement('optgroup');
         cloudGroup.label = "Cloud Models (API)";
         
-        const haikuOpt = document.createElement('option');
-        haikuOpt.value = "claude-haiku-4-5";
-        haikuOpt.innerText = "Claude Haiku 4.5 (low cost)";
-        cloudGroup.appendChild(haikuOpt);
-
-        const claudeOpt = document.createElement('option');
-        claudeOpt.value = "claude-3-5-sonnet-latest";
-        claudeOpt.innerText = "Claude Sonnet (higher cost)";
-        cloudGroup.appendChild(claudeOpt);
-
         const geminiOpt = document.createElement('option');
         geminiOpt.value = "gemini-2.5-flash";
         geminiOpt.innerText = "Gemini 2.5 Flash";
