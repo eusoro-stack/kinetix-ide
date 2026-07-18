@@ -1,32 +1,81 @@
 /* Kinetix Console - Masterpiece Edition High-Fidelity Stylesheet */
 
 :root {
-  --bg-dark: #070913;
-  --bg-card: rgba(11, 15, 30, 0.55);
-  --bg-card-hover: rgba(16, 21, 42, 0.7);
-  --border-glass: rgba(255, 255, 255, 0.05);
-  --border-glass-bright: rgba(255, 255, 255, 0.12);
-  --border-glow: rgba(0, 242, 254, 0.4);
+  /* Colors */
+  --clr-bg-deep: #0A0B0E; /* Deep almost-black, like a matte metallic finish */
+  --clr-bg-secondary: #1A1C21; /* Slightly lighter base for content sections */
+  --clr-text-primary: #E0E0E0; /* Crisp light grey for main text */
+  --clr-text-secondary: #A0A0A0; /* Muted grey for descriptions, sub-headings */
+  --clr-accent-blue: #007BFF; /* Iconic BMW M blue for interactive elements */
+  --clr-accent-blue-dark: #0056B3; /* Darker shade for gradients */
+  --clr-accent-red: #E74C3C; /* Subtle M-series red for alerts or special badging */
+  --clr-accent-gold: #D4AF37; /* Very subtle gold for premium highlights */
+  --clr-glass-base: rgba(255, 255, 255, 0.08); /* Base for glassmorphism panels */
+  --clr-glass-border: rgba(255, 255, 255, 0.15); /* Border for glass elements */
+  --clr-shadow-dark: rgba(0, 0, 0, 0.4); /* For depth under glass elements */
+  --clr-shadow-light: rgba(255, 255, 255, 0.05); /* Inner shadow for glow effect */
+
+  /* Typography */
+  --font-family-heading: 'Inter', sans-serif; /* Modern, strong, highly readable */
+  --font-family-body: 'Roboto', sans-serif; /* Clean, humanist, excellent for body copy */
+  --font-size-base: 16px;
+  --font-size-h1: 3.5rem; /* Dynamic headings */
+  --font-size-h2: 2.5rem;
+  --font-size-h3: 1.8rem;
+  --font-weight-bold: 700;
+  --font-weight-semibold: 600;
+  --font-weight-regular: 400;
+
+  /* Spacing */
+  --space-xs: 8px;
+  --space-sm: 16px;
+  --space-md: 24px;
+  --space-lg: 40px;
+  --space-xl: 64px;
+
+  /* Border Radius */
+  --border-radius-sm: 8px; /* Subtle rounding for precision */
+  --border-radius-md: 12px;
+  --border-radius-lg: 16px; /* For larger glass panels */
+
+  /* Shadows */
+  --shadow-glass-sm: 0 4px 15px var(--clr-shadow-dark);
+  --shadow-glass-md: 0 8px 30px var(--clr-shadow-dark);
+  --shadow-button: 0 2px 8px var(--clr-shadow-dark);
+
+  /* Transitions */
+  --transition-speed-fast: 0.2s;
+  --transition-speed-normal: 0.3s;
+  --transition-speed-slow: 0.5s;
+  --transition-ease: ease-in-out;
+
+  /* Mappings to legacy variables */
+  --bg-dark: var(--clr-bg-deep);
+  --bg-card: var(--clr-glass-base);
+  --bg-card-hover: rgba(255, 255, 255, 0.12);
+  --border-glass: var(--clr-glass-border);
+  --border-glass-bright: rgba(255, 255, 255, 0.25);
+  --border-glow: rgba(0, 123, 255, 0.4);
   
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-muted: #475569;
+  --text-primary: var(--clr-text-primary);
+  --text-secondary: var(--clr-text-secondary);
+  --text-muted: var(--clr-text-secondary);
   
-  /* Vibrant Hyper-Tech Accents */
-  --accent-blue: #00f2fe;
-  --accent-blue-rgb: 0, 242, 254;
-  --accent-purple: #a855f7;
-  --accent-purple-rgb: 168, 85, 247;
-  --accent-pink: #ff007a;
-  --accent-pink-rgb: 255, 0, 122;
-  --accent-green: #10b981;
-  --accent-green-rgb: 16, 185, 129;
-  --accent-yellow: #f59e0b;
-  --accent-red: #ef4444;
+  /* Vibrant Hyper-Tech Accents mapped to BMW M Series Palette */
+  --accent-blue: var(--clr-accent-blue);
+  --accent-blue-rgb: 0, 123, 255;
+  --accent-purple: #1F618D;
+  --accent-purple-rgb: 31, 97, 141;
+  --accent-pink: var(--clr-accent-red);
+  --accent-pink-rgb: 231, 76, 60;
+  --accent-green: #2ECC71;
+  --accent-green-rgb: 46, 204, 113;
+  --accent-yellow: var(--clr-accent-gold);
+  --accent-red: var(--clr-accent-red);
   
   /* Fonts */
-  --font-display: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display: var(--font-family-heading);
+  --font-sans: var(--font-family-body);
 }
 
 * {

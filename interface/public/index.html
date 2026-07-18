@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>🛸 Kinetix IDE — Core Grid Monitor</title>
   
-  <!-- Google Fonts Outfit & Inter -->
+  <!-- Google Fonts Outfit, Inter & Roboto -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Outfit:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700;800&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
   
   <!-- Custom Premium Glassmorphic Stylesheet -->
   <link rel="stylesheet" href="theme.css?v=2">
@@ -41,12 +41,14 @@
         <button class="nav-tab" data-tab="chat">💬 AI Chat Studio</button>
         <button class="nav-tab" data-tab="image">🎨 Image Studio</button>
         <button class="nav-tab" data-tab="diagnostics">🔍 AI Diagnostics</button>
+        <button class="nav-tab" data-tab="affinity">⚙️ Thread Affinity</button>
       </div>
       
       <!-- Node Switcher Tabs -->
       <div class="node-switcher">
         <button class="node-tab active" id="tab-mac" onclick="switchNode('mac')">💻 MacBook Pro</button>
         <button class="node-tab" id="tab-alienware" onclick="switchNode('alienware')">👽 Alienware RTX</button>
+        <button class="node-tab" id="tab-surface" onclick="switchNode('surface')">📖 Surface Book</button>
       </div>
       
       <div class="sys-meta">
@@ -839,6 +841,46 @@
         </div>
       </div>
 
+      <!-- Tab 5: Thread Affinity Calibration -->
+      <div class="tab-content" id="tab-affinity">
+        <div class="grid-layout">
+          <div class="card glass-card span-2-cols" style="margin-top:0;">
+            <div class="card-header">
+              <h3>⚙️ Workstation Core Affinity & Thread Calibrator</h3>
+              <span class="badge active" id="affinity-status">Tuning Engaged</span>
+            </div>
+            
+            <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.5rem; line-height: 1.5;">
+              Define operating system thread scheduling overrides for active processes. Heavy AI workload runtimes (Ollama/llama.cpp) can be isolated to Performance Cores (P-cores) while background systems (compilers, trackers, webservers) can be pinned to Efficient Cores (E-cores) to prevent CPU latency spikes and thread contention.
+            </p>
+
+            <div class="affinity-rules-editor" style="background: rgba(5,6,12,0.6); border: 1px solid rgba(255,255,255,0.06); padding: 1.5rem; border-radius: 12px; margin-bottom: 2rem;">
+              <h4 style="font-family: var(--font-display); font-weight: 700; margin-bottom: 1rem; font-size: 1rem;">Active Process Isolation Rules</h4>
+              
+              <div id="affinity-rules-list" style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 1.5rem;">
+                <!-- rules will be populated here -->
+              </div>
+
+              <div class="add-rule-form" style="display: flex; gap: 10px; align-items: center; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 1rem;">
+                <input type="text" id="new-rule-name" placeholder="Process Name Pattern (e.g. webpack, python)" style="flex: 2; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 0.5rem; color: #fff; outline: none; font-size: 0.85rem;">
+                <select id="new-rule-cores" style="flex: 1; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 0.5rem; color: #fff; outline: none; font-size: 0.85rem;">
+                  <option value="P">Performance Cores (P-Cores)</option>
+                  <option value="E">Efficient Cores (E-Cores)</option>
+                  <option value="A">All Cores (No Pinning)</option>
+                </select>
+                <button onclick="addAffinityRule()" style="background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-purple) 100%); border: none; border-radius: 6px; padding: 0.55rem 1.25rem; color: #ffffff; font-weight: 600; font-size: 0.85rem; cursor: pointer;">Add Rule</button>
+              </div>
+            </div>
+
+            <div style="display: flex; justify-content: flex-end; gap: 1rem;">
+              <button onclick="loadAffinityRules()" style="background: transparent; border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; padding: 0.55rem 1.25rem; color: #ffffff; font-size: 0.85rem; cursor: pointer;">Reset Changes</button>
+              <button onclick="saveAffinityRules()" style="background: linear-gradient(135deg, var(--accent-blue) 0%, var(--accent-purple) 100%); border: none; border-radius: 6px; padding: 0.55rem 1.50rem; color: #ffffff; font-weight: 600; font-size: 0.85rem; cursor: pointer; box-shadow: 0 0 10px rgba(0, 242, 254, 0.25);">Apply & Recalibrate</button>
+            </div>
+            
+          </div>
+        </div>
+      </div>
+
     </main>
 
     <!-- Footer Stats / Details -->
@@ -958,5 +1000,123 @@
   </div>
 
   <script src="app.js"></script>
+  <script>
+    let affinityRules = {};
+
+    async function loadAffinityRules() {
+      try {
+        const response = await fetch('/api/affinity/rules');
+        if (response.ok) {
+          affinityRules = await response.json();
+          renderAffinityRules();
+        } else {
+          console.error("Failed to load affinity rules");
+        }
+      } catch (err) {
+        console.error("Error loading affinity rules:", err);
+      }
+    }
+
+    function renderAffinityRules() {
+      const container = document.getElementById('affinity-rules-list');
+      if (!container) return;
+      
+      container.innerHTML = '';
+      
+      const keys = Object.keys(affinityRules);
+      if (keys.length === 0) {
+        container.innerHTML = '<div style="color: var(--text-muted); font-size: 0.85rem; text-align: center; padding: 1rem;">No custom core isolation rules defined. Processes will resolve to defaults.</div>';
+        return;
+      }
+      
+      keys.forEach(key => {
+        const val = affinityRules[key];
+        let label = "All Cores";
+        let bgStyle = "background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: var(--text-secondary);";
+        if (val === 'P') {
+          label = "Performance Cores (P-Cores)";
+          bgStyle = "background: rgba(0, 242, 254, 0.08); border: 1px solid rgba(0, 242, 254, 0.2); color: var(--accent-blue);";
+        } else if (val === 'E') {
+          label = "Efficient Cores (E-Cores)";
+          bgStyle = "background: rgba(168, 85, 247, 0.08); border: 1px solid rgba(168, 85, 247, 0.2); color: var(--accent-purple);";
+        }
+        
+        const row = document.createElement('div');
+        row.style.cssText = 'display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.04); padding: 0.75rem 1rem; border-radius: 8px;';
+        row.innerHTML = `
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <span style="font-family: monospace; font-size: 0.9rem; font-weight: 600; color: #fff;">${key}</span>
+            <span class="badge" style="font-size: 0.7rem; padding: 2px 8px; border-radius: 4px; display: inline-block; ${bgStyle}">${label}</span>
+          </div>
+          <button onclick="deleteAffinityRule('${key}')" style="background: none; border: none; color: #ef4444; cursor: pointer; font-size: 0.85rem; font-weight: 600;">Remove</button>
+        `;
+        container.appendChild(row);
+      });
+    }
+
+    function addAffinityRule() {
+      const nameInput = document.getElementById('new-rule-name');
+      const coresSelect = document.getElementById('new-rule-cores');
+      
+      const name = nameInput.value.trim().toLowerCase();
+      const cores = coresSelect.value;
+      
+      if (!name) {
+        alert("Please enter a process name pattern!");
+        return;
+      }
+      
+      affinityRules[name] = cores;
+      nameInput.value = '';
+      renderAffinityRules();
+    }
+
+    function deleteAffinityRule(key) {
+      delete affinityRules[key];
+      renderAffinityRules();
+    }
+
+    async function saveAffinityRules() {
+      try {
+        const response = await fetch('/api/affinity/rules', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(affinityRules)
+        });
+        if (response.ok) {
+          const result = await response.json();
+          alert("Affinity rules saved! Daemon will apply them during the next telemetry cycle.");
+          loadAffinityRules();
+        } else {
+          const err = await response.json();
+          alert("Failed to save rules: " + err.error);
+        }
+      } catch (err) {
+        alert("Error saving rules: " + err.message);
+      }
+    }
+
+    // Load rules on startup
+    document.addEventListener("DOMContentLoaded", () => {
+      loadAffinityRules();
+      
+      // Bind tab button click listener for custom tab switching override in case app.js is strict
+      setTimeout(() => {
+        const tabs = document.querySelectorAll('.nav-tab');
+        tabs.forEach(tab => {
+          if (tab.getAttribute('data-tab') === 'affinity') {
+            tab.addEventListener('click', () => {
+              tabs.forEach(t => t.classList.remove('active'));
+              tab.classList.add('active');
+              document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+              const activeContent = document.getElementById('tab-affinity');
+              if (activeContent) activeContent.classList.add('active');
+              loadAffinityRules();
+            });
+          }
+        });
+      }, 500);
+    });
+  </script>
 </body>
 </html>
